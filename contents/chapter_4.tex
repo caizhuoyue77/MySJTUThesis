@@ -57,7 +57,13 @@ r_s = \text{API\_call}(a_s, \text{params}) \tag{6}
 
 通过这样的设计，我们的基于大语言模型Agent和图谱的API编排和调用工具能够有效地处理复杂任务，优化API的调用流程和准确性。
 
-\section{任务改写与子任务拆解模块}
+\section{整体框架}
+
+
+
+\section{算法实现}
+
+\subsection{任务改写与子任务拆解模块}
 
 由于用户的需求可能会较为模糊、笼统，或者在同一个需求语句中存在多个潜在的子任务。通过对用户提供的复杂需求进行分解、改写，并生成适合执行的具体指令，这一过程使得任务变得更加明确和易于解决。
 
@@ -71,7 +77,34 @@ r_s = \text{API\_call}(a_s, \text{params}) \tag{6}
 
 总的来说，基于大语言模型的任务分解模块通过分解复杂任务、改写用户需求，并动态调整任务规划，使得该系统在执行复杂任务时更加灵活、精准且高效。
 
-\section{基于深度优先遍历的动态搜索算法}
+
+
+% 设置颜色
+\definecolor{bgcolor}{RGB}{240,240,240} % 背景颜色
+\definecolor{titlecolor}{RGB}{230,20,30} % 标题背景颜色
+
+
+\begin{center}
+% 使用 tcolorbox 创建背景
+\begin{tcolorbox}[colback=bgcolor, colframe=black, width=0.8\textwidth, boxrule=0.5mm, 
+coltitle=white, colbacktitle=titlecolor, title=An Example for Response Generation with GPT-4]
+
+% 使文字居中
+
+\textbf{Instruction Prompt:} You are currently in the response generation stage. You are given the output of selected tools that can be potentially used to solve the sub-task. Your goal is to generate a response to the user question based on the results from tools and your internal knowledge.
+
+\textbf{User Question:} I would like to know the value of 5 ounces of gold plus 1 million AMZN stocks in CNY.
+
+\textbf{Return from Tool Calling:} The stock price of AMZN is 130 USD, XAU USD is 1919.7605807522993, and the exchange rate between USD and YNC is 7.24.
+
+\textbf{Output:} \textcolor{red}{Total value in CNY: Total value = Value of gold in CNY + Value of stocks in CNY = 69,495.87 + 941,200,000 = 941,269,495.87 CNY. Therefore, the combined value of 5 ounces of gold and 1 million Amazon stocks in Chinese Yuan is approximately 941,269,495.87 CNY.}
+
+\end{tcolorbox}
+
+\end{center}
+
+
+\subsection{基于深度优先遍历的动态搜索算法}
 
 为了更好地利用我们构建的工具图谱，并挖掘隐藏节点关系中的知识，我们开发了一个基于深度优先遍历的寻路算法。与“思维链”（Chain-of-Thought）或ReACT方法相比，该算法的优点在于能够防止错误传播，并对整体工具行动空间进行更深入的探索。
 
@@ -133,7 +166,7 @@ r_s = \text{API\_call}(a_s, \text{params}) \tag{6}
     }
   \end{algorithm}
 
-\section{自我反思机制}
+\subsection{自我反思机制}
 
 本文构建的自我反思框架会在动态寻路算法选择“放弃”或者评判器将该路径判定为“失败”的情况下被激活。在自我反思框架中，我们首先需要进行“反思”，即根据当前编排得到的工具调用路径，识别未能成功满足用户需求的原因。具体而言，当动态寻路算法的选择器决定“放弃”某条路径时，会提供该路径放弃的具体原因。这些“放弃原因”可作为反思的依据，以指导模型在后续的路径选择中作出更为合理的决策。此外，在动态寻路算法得出一个解决方案后，若经过评估器的评估发现该路径未能充分满足用户需求，则会引用评估器所提供的失败理由。评估器在评估失败时会对该路径及总结器的最终回答提供一个等级，根据失败的等级我们可以选择以下两种不同的重新寻路算法：第一种是从中间步骤开始重新寻找路径，另一种是从头开始重新寻找路径。
 
@@ -147,17 +180,17 @@ r_s = \text{API\_call}(a_s, \text{params}) \tag{6}
 
 综上所述，这两种反思策略——从中间步骤继续优化和从头开始的寻路——的结合使用，能够在处理用户需求未满足的情况下，提供更高的灵活性与效率。通过不断的反思与优化，系统将逐步提升其在动态环境中的适应能力，确保用户体验的持续改进。
 
-\section{工具调用路径长短期记忆框架}
+\subsection{工具调用路径长短期记忆框架}
 
-\subsection{长短期记忆框架概述}
+\subsubsection{长短期记忆框架概述}
 
 本小节提出了关于增强模型规划和推理准确性的长短期记忆框架。该框架主要分为短期记忆和长期记忆两个部分。短期记忆部分指的是当模型在图上动态推理时存储的每个步骤的记录，主要聚焦于以什么数据格式来存储推理步骤，以及记录哪些有用的记忆信息：在图上前进、回溯还有大模型的思考过程等。长期记忆部分主要有记忆存储、召回和利用三个部分，围绕着如何进一步利用过去成功推理的经验来辅助后续的推理和规划过程。
 
-\subsection{短期记忆}
+\subsubsection{短期记忆}
 
 短期记忆指的是模型在图上进行不断推理时保存的一些状态信息，这些信息包括：用户的任务、当前遍历到的节点、历史遍历的节点、轨迹路径信息等。在遍历的过程中，我们会动态地更新和维护短期记忆存储的内容，来辅助模型进行推理和规划。在短期记忆中，我们一般将全部的信息存储在内存中，然后直接构建提示词添加到大语言模型的上下文中，让模型能够感知到当前的状态和环境。
 
-\subsection{长期记忆}
+\subsubsection{长期记忆}
 
 长期记忆是与短期记忆相对的概念，长期记忆会固定地存在数据库中，并且随着调用次数增多而积累。长期记忆记录的是最终形成的工具调用链以及结果，每次在系统进行推理时都会从长期记忆库中进行搜索，从而利用历史经验知识来辅助模型的推理。
 
