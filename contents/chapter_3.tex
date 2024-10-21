@@ -60,7 +60,41 @@ ToolAlpaca包括xxx。
 
 该图谱在结构上较为简单和直观，目前的图谱节点为经过筛选后的API工具节点。
 
-\section{图谱存储和查询}
+\subsection{图谱静态构建}
+
+\subsection{图谱动态构建}
+
+
+
+\section{图谱查询}
+
+图谱数据将会存储在两个地方：存储图结构的图数据库和存储图的向量内容的向量数据库中。
+
+在查询时，我们会通过计算语义相似度来计算用户需求与工具描述之间的相似度，从而选择最有关的一组工具来作为图谱上的初始搜索节点。
+
+\section{API召回模型训练}
+
+通过对现有的通用向量模型进行测试，如BGE，BCE，M3E等，我们发现通用的向量模型在用户需求与工具匹配任务上具有一定提升空间。因此，本文提出了基于通用向量模型进行微调，提升模型在工具选择上的能力。
+
+本文通过提出了细粒度、高难度的正负样本构建策略，以及通过选择不同的策略，有效提升了模型的工具搜索能力。
+
+\subsection{训练数据构造}
+
+
+在负样本构造时，我们采用了两种策略，一种是简单负样本构造一种是
+
+
+\subsection{模型训练及超参数设置}
+
+在进行向量模型微调之前，选择合适的基座模型是一个关键步骤，这将直接影响到微调后模型的性能以及效率。在选择基座模型时，通常需要考虑到模型的规模、大小，模型支持的语言，模型的训练任务等。
+
+基于上述原因，本工作在对比性能后选择了BGE-m3模型作为基础模型进行训练。理由如下：
+
+本工作基于BGE-m3进行了微调。实现过程中将epoce数量设置为xx，学习率设置为3e-5进行学习。
+
+\section{实验}
+
+本文将
 
 \section{插图}
 
@@ -117,7 +151,7 @@ ToolAlpaca包括xxx。
 
 \begin{figure}[!htp]
   \centering
-  \includegraphics[height=2cm]{sjtu-vi-badge-red.pdf}
+  \includegraphics[height=2cm]{../assets/1.png}
   \hspace{1cm}
   \includegraphics[height=2cm]{sjtu-vi-badge-red.pdf}
   \bicaption{中文题图}{English caption}
