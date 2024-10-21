@@ -2,6 +2,17 @@
 
 \chapter{基于工具调用轨迹的知识图谱构建}
 
+\section{引言}
+
+本章介绍了一种基于工具调用轨迹数据进行工具知识图谱构造的策略，并基于此方法实现了一个大规模的工具知识图谱。本章将会围绕着工具知识图谱构建中的一些挑战出发，比如：
+1.如何对工具调用轨迹数据进行数据筛选，得到高质量的工具集以及工具调用轨迹？
+2.如何设计工具知识图谱的结构，以表示工具之间隐含的依赖关系？
+3.如何验证工具图谱作为知识库的有效性？
+
+基于上述问题，我们进行了以下研究：首先，我们提出了两种数据筛选策略，从API工具和API调用轨迹的角度对数据进行了筛选，保留了一批高质量的工具轨迹数据。
+其次，我们设计了工具动态转移权值和工具静态转移权值两种方式，通过对工具轨迹数据进行计算，得到了工具之间的转换权值，用于后续指导大语言模型进行选择。
+最后，关于验证工具图谱作为知识库的有效性，我们对比了直接用普通的检索增强方式和包含图谱知识的方式，验证了构建工具知识图谱的有效性。
+
 \section{整体流程}
 
 在现实场景的工具调用场景中，其实不同类型的工具之前存在隐含的顺序关系，比如“城市经纬度查询”和“根据经纬度获取实时天气”的工具总是在一起使用。这种存在于工具调用轨迹中的“过程性知识”对工具规划非常有启发性，能够表示工具之间的调用关系和跳转关系。基于此，我们希望能够通过对工具之间的转换关系进行建模，并将工具的搜索范围限定在一个更精确的空间，以辅助大语言模型工具调用。
@@ -58,31 +69,112 @@ ToolAlpaca包括xxx。
 
 \section{图谱构建}
 
-该图谱在结构上较为简单和直观，目前的图谱节点为经过筛选后的API工具节点。
+工具图的构建对于系统整体的性能和效率至关重要。
+在这里，我们参考了ToolNet当中的设计\cite{Liu2024}
+将API工具作为图谱中的工具节点，
+工具节点之间的边上带有一个权值，该权值叫做“工具转移权值”，用于代表
+从当前工具出发，有多大的可能性会跳转到调用另一个工具的使用。
+因此，在该工具图谱中，权值的计算方式非常重要。边的权值应该有区分度，不然无法提供有效的信息。
 
-\subsection{图谱静态构建}
+除了对工具之间边上的权值进行定义，本文还提供了对于节点的权值定义，该权值定义为该节点的存活状态。
 
-\subsection{图谱动态构建}
+API工具具有时效性和多变性，为了让工具图谱能够更好地表示最新的工具状态，我们会根据调用历史对边和点的权值进行动态的更新。
+
+\subsection{静态构建} 
+
+静态构建图的过程相对简单，与 2-gram 语言模型类似。设定 $D$ 为已完成任务的工具使用轨迹集合。
+
+每条轨迹由工具使用的顺序构成，例如 $[\text{tool}_1, \dots, \text{tool}_s, \dots, \text{end}]$。为了简化操作，我们将“结束”视为一种普通工具。
+
+节点 $v_i$ 到 $v_j$ 的转移权重 $w_{i,j}$ 计算如下：
+
+\[
+w_{i,j} = \frac{\mathbb{E}_D[1(\text{tool}_s = v_i, \text{tool}_{s+1} = v_j)]}{\mathbb{E}_D[1(\text{tool}_s = v_i)]}
+\]
+
+节点 $v_i$ 的可用性权重计算如下：
+
+\[
+\text{可用性权重} = \frac{\text{调用成功次数}}{\text{总次数}} \quad (0 \leq \text{可用性权重} \leq 1)
+\]
 
 
+\subsection{动态更新}  
 
-\section{图谱查询}
+1. 对于新加入的api工具
+2. 对于新产生的调用轨迹
 
-图谱数据将会存储在两个地方：存储图结构的图数据库和存储图的向量内容的向量数据库中。
+工具是动态变化的，具有生命周期，有些可能会随着时间的推移不再被开发者维护。
+因此，图中边的权重需要及时调整，这使得静态构建无法应对。
+此外，通常情况下，工具使用轨迹的数据量并不充足，
+尤其是对于像 ChatGPT 上新出现的插件。
+在这种情况下，动态构建 $G$ 变得至关重要。 
 
-在查询时，我们会通过计算语义相似度来计算用户需求与工具描述之间的相似度，从而选择最有关的一组工具来作为图谱上的初始搜索节点。
+图 $G$ 可以通过静态方法初始化，
+或者初始化为一个完全连接的无信息图。
+随后，动态构建会在生成工具使用轨迹和更新图 $G$ 之间进行迭代。
+轨迹生成的过程与第 3 节中所描述的相同。
+图 $G$ 的更新尤为关键。
+由于可用的工具使用轨迹数量有限，因此需要对每条轨迹进行细致的检查。
+LLM 作为工具评估器，将整个轨迹作为输入，
+对每个使用的工具进行打分。
+打分范围为 $[-3, 3]$ 的离散整数。
+评估工具相当于评估图中被访问的节点。
+我们用 $\Delta_i^{(n)}$ 表示第 $n$ 次迭代中节点 $v_i$ 的评估分数。
+累积得分 $s_i^{(n)}$ 计算如下：
+
+\[
+s_i^{(n)} = \sum_{k=1}^{n} \Delta_i^{(k)}
+\]
+节点 $v_i$ 到 $v_j$ 的转移权重 $w_{i,j}^{(n)}$ 的更新公式如下：
+\[
+w_{i,j}^{(n)} = \beta w_{i,j}^{(0)} + (1 - \beta) \Delta w_{i,j}^{(n)}
+\]
+其中，$\Delta w_{i,j}^{(n)}$ 是用于更新转移权重的归一化梯度：
+\[
+\Delta w_{i,j}^{(n)} = \frac{f(s_i^{(n)})}{\sum_{v_j \in \text{oneigh}(v_i)} f(s_j^{(n)})}
+\]
+函数 $f(x)$ 将累积分数映射到 $(0,+\infty)$：
+\[
+f(x) :=
+\begin{cases}
+\alpha x + 1, & \text{if } x \geq 0 \\
+e^{\alpha x}, & \text{if } x < 0
+\end{cases}
+\]
+其中 $f(x)$ 是累积分数与更新梯度之间的映射函数。
+$\alpha$ 和 $\beta$ 是超参数，$\alpha$ 控制更新速度，
+$\beta$ 在初始权重 $w_{i,j}^{(0)}$ 和动态构建学习得到的权重之间插值。
+
 
 \section{API召回模型训练}
 
 通过对现有的通用向量模型进行测试，如BGE，BCE，M3E等，我们发现通用的向量模型在用户需求与工具匹配任务上具有一定提升空间。因此，本文提出了基于通用向量模型进行微调，提升模型在工具选择上的能力。
 
-本文通过提出了细粒度、高难度的正负样本构建策略，以及通过选择不同的策略，有效提升了模型的工具搜索能力。
+本文在训练数据构造部分提出了细粒度、高难度的正负样本构建策略，有效提升了模型的工具搜索能力。
 
 \subsection{训练数据构造}
 
+在训练向量模型时，训练数据包含三个部分：正样本，负样本，查询语句。
+查询语句即为数据集中的“query”字段，对应用户输入的查询信息。
+正样本也可以直接使用数据集提供的参考API列表。
+但是对于负样本的部分，我们采取了两种不同的负样本构造方式：一种是简单负样本（Simple Negative）构造一种是困难负样本构造（Hard Negative）。
 
-在负样本构造时，我们采用了两种策略，一种是简单负样本构造一种是
+\indent \textbf{简单负样本构造}。对于简单负样本构造，我们直接选择了不同大类的K个工具作为负样本。
 
+\indent \textbf{基于大语言模型的困难负样本构造}。在工具选择、调用场景，开源的通用向量模型难以区分工具之间细微的语义区别。
+
+如下图所示，（介绍为什么需要tune，明明两个很不同的相似度很高，但是很一致的相似度很低）。
+
+因此，困难负样本构造的目的是帮助模型更好地区分工具之间细微的语义区别，帮助更好地应对噪声。
+我们选择采用GPT-3.5完成困难负样本的构造。由于原工具数据量众多，从中筛选语义表述类似、但是功能上有区别的工具样本费时费力。因此我们采取了直接用大语言模型生成工具描述作为负样本的策略。
+
+具体策略如下：
+首先，我们采样一批<query,推荐工具集>的数据，
+然后我们遍历其中的推荐工具集的工具，
+通过提示词将用户需求和工具描述提供给大语言模型，
+要求模型生成类似但是功能上无法满足用户需求的工具描述。
+通过这样遍历工具描述生成负样本，可以生成一组高质量的困难负样本供模型学习。
 
 \subsection{模型训练及超参数设置}
 
@@ -90,28 +182,46 @@ ToolAlpaca包括xxx。
 
 基于上述原因，本工作在对比性能后选择了BGE-m3模型作为基础模型进行训练。理由如下：
 
-本工作基于BGE-m3进行了微调。实现过程中将epoce数量设置为xx，学习率设置为3e-5进行学习。
+本文分别使用简单负样本构造和困难负样本构造方法构造了xxx条数据和xxx条数据，分别对模型进行了微调。
+同时，在测试集中，我们除了使用从ToolBench中筛选得到的数据。
 
-\section{实验}
+本工作基于BGE-m3进行了微调。实现过程中将epoch数量设置为xx，学习率设置为3e-5进行学习。
+模型大小为xxx，在xxx芯片上训练了xxx得到了结果。
 
-本文将
+\section{实验结果}
+
+
+
+\begin{table}[!ht]
+  \centering
+  \caption{API工具召回实验结果}
+  \label{tab:comparison}
+  \begin{tabular}{lccc>{\bfseries}c} % 'lccc' defines 1 left and 3 center aligned columns, '>{\bfseries}c' makes last column bold
+    \toprule
+    \textbf{Method} & \textbf{I1} & \textbf{I2} & \textbf{I3} & \textbf{Average} \\ \midrule
+    BCE         & 30.1 & 40.0 & 28.6 & 32.9 \\
+    BGE-Small         & 42.3 & 45.6 & 33.2 & 40.4 \\
+    ToolBench   & 46.5 & 49.1 & 38.9 & 44.8 \\
+    Ours        & \textbf{58.0} & \textbf{70.6} & \textbf{62.8} & \textbf{63.8} \\ \bottomrule
+  \end{tabular}
+\end{table}
 
 \section{插图}
 
-插图功能是利用 \TeX{} 的特定编译程序提供的机制实现的，不同的编译程序支持不同的图
-形方式。有的同学可能听说“\LaTeX{} 只支持 EPS”，事实上这种说法是不准确的。\XeTeX{}
-可以很方便地插入 EPS、PDF、PNG、JPEG 格式的图片。
+% 插图功能是利用 \TeX{} 的特定编译程序提供的机制实现的，不同的编译程序支持不同的图
+% 形方式。有的同学可能听说“\LaTeX{} 只支持 EPS”，事实上这种说法是不准确的。\XeTeX{}
+% 可以很方便地插入 EPS、PDF、PNG、JPEG 格式的图片。
 
-一般图形都是处在浮动环境中。之所以称为浮动是指最终排版效果图形的位置不一定与源文
-件中的位置对应，这也是刚使用 \LaTeX{} 同学可能遇到的问题。如果要强制固定浮动图形
-的位置，请使用 \pkg{float} 宏包，它提供了 \texttt{[H]} 参数。
+% 一般图形都是处在浮动环境中。之所以称为浮动是指最终排版效果图形的位置不一定与源文
+% 件中的位置对应，这也是刚使用 \LaTeX{} 同学可能遇到的问题。如果要强制固定浮动图形
+% 的位置，请使用 \pkg{float} 宏包，它提供了 \texttt{[H]} 参数。
 
 \subsection{单个图形}
 
-图要有图题，研究生图题采用中英文对照，并置于图的编号之后，图的编号和图题应置于图
-下方的居中位置。引用图应在图题右上角标出文献来源。文中必须有关于本插图的提示，如
-“见图~\ref{fig:energy-distrib}”、“如图~\ref{fig:energy-distrib} 所示”等。该页空
-白不够排写该图整体时，则可将其后文字部分提前排写，将图移到次页。
+% 图要有图题，研究生图题采用中英文对照，并置于图的编号之后，图的编号和图题应置于图
+% 下方的居中位置。引用图应在图题右上角标出文献来源。文中必须有关于本插图的提示，如
+% “见图~\ref{fig:energy-distrib}”、“如图~\ref{fig:energy-distrib} 所示”等。该页空
+% 白不够排写该图整体时，则可将其后文字部分提前排写，将图移到次页。
 
 \begin{figure}[!htp]
   \centering
@@ -146,8 +256,8 @@ ToolAlpaca包括xxx。
 
 \subsection{多个图形}
 
-简单插入多个图形的例子如图~\ref{fig:SRR} 所示。这两个水平并列放置的子图共用一个
-图形计数器，没有各自的子图题。
+% 简单插入多个图形的例子如图~\ref{fig:SRR} 所示。这两个水平并列放置的子图共用一个
+% 图形计数器，没有各自的子图题。
 
 \begin{figure}[!htp]
   \centering
@@ -177,12 +287,12 @@ ToolAlpaca包括xxx。
   \end{minipage}
 \end{figure}
 
-如果要为共用一个计数器的多个子图添加子图题，建议使用较新的 \pkg{subcaption} 宏
-包，不建议使用 \pkg{subfigure} 或 \pkg{subfig} 等宏包。
+% 如果要为共用一个计数器的多个子图添加子图题，建议使用较新的 \pkg{subcaption} 宏
+% 包，不建议使用 \pkg{subfigure} 或 \pkg{subfig} 等宏包。
 
-推荐使用 \pkg{subcaption} 宏包的 \cs{subcaptionbox} 并排子图，子图题置于子图之
-下，子图号用 a)、b) 等表示。也可以使用 \pkg{subcaption} 宏包的 \cs{subcaption}
-（放在 minipage中，用法同 \cs{caption}）。
+% 推荐使用 \pkg{subcaption} 宏包的 \cs{subcaptionbox} 并排子图，子图题置于子图之
+% 下，子图号用 a)、b) 等表示。也可以使用 \pkg{subcaption} 宏包的 \cs{subcaption}
+% （放在 minipage中，用法同 \cs{caption}）。
 
 \pkg{subcaption} 宏包也提供了 \pkg{subfigure} 和 \pkg{subtable} 环境，如
 图~\ref{fig:subfigure}。
@@ -223,9 +333,9 @@ ToolAlpaca包括xxx。
 \end{figure}
 
 
-% \section{表格}
+\section{表格}
 
-% \subsection{基本表格}
+\subsection{基本表格}
 
 % 编排表格应简单明了，表达一致，明晰易懂，表文呼应、内容一致。表题置于表上，研究生
 % 学位论文可以用中、英文两种文字居中排写，中文在上，也可以只用中文。
@@ -235,25 +345,26 @@ ToolAlpaca包括xxx。
 % 竖线。}。三线表可以使用 \pkg{booktabs} 提供的 \cs{toprule}、\cs{midrule} 和
 % \cs{bottomrule}。它们与 \pkg{longtable} 能很好的配合使用。
 
-% \begin{table}[!hpt]
-%   \caption[一个颇为标准的三线表]{一个颇为标准的三线表\footnotemark}
-%   \label{tab:firstone}
-%   \centering
-%   \begin{tabular}{@{}llr@{}} \toprule
-%     \multicolumn{2}{c}{Item} \\ \cmidrule(r){1-2}
-%     Animal & Description & Price (\$)\\ \midrule
-%     Gnat  & per gram  & 13.65 \\
-%           & each      & 0.01 \\
-%     Gnu   & stuffed   & 92.50 \\
-%     Emu   & stuffed   & 33.33 \\
-%     Armadillo & frozen & 8.99 \\ \bottomrule
-%   \end{tabular}
-% \end{table}
-% \footnotetext{这个例子来自
-%   \href{https://mirrors.sjtug.sjtu.edu.cn/ctan/macros/latex/contrib/booktabs/booktabs.pdf}%
-%   {《Publication quality tables in LaTeX》}（\pkg{booktabs} 宏包的文档）。这也是
-%   一个在表格中使用脚注的例子，请留意与 \pkg{threeparttable} 实现的效果有何不
-%   同。}
+
+\begin{table}[!hpt]
+  \caption[一个颇为标准的三线表]{一个颇为标准的三线表\footnotemark}
+  \label{tab:firstone}
+  \centering
+  \begin{tabular}{@{}llr@{}} \toprule
+    \multicolumn{2}{c}{Item} \\ \cmidrule(r){1-2}
+    Animal & Description & Price (\$)\\ \midrule
+    Gnat  & per gram  & 13.65 \\
+          & each      & 0.01 \\
+    Gnu   & stuffed   & 92.50 \\
+    Emu   & stuffed   & 33.33 \\
+    Armadillo & frozen & 8.99 \\ \bottomrule
+  \end{tabular}
+\end{table}
+\footnotetext{这个例子来自
+  \href{https://mirrors.sjtug.sjtu.edu.cn/ctan/macros/latex/contrib/booktabs/booktabs.pdf}%
+  {《Publication quality tables in LaTeX》}（\pkg{booktabs} 宏包的文档）。这也是
+  一个在表格中使用脚注的例子，请留意与 \pkg{threeparttable} 实现的效果有何不
+  同。}
 
 % \subsection{复杂表格}
 
