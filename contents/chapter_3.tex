@@ -23,7 +23,9 @@
 
 在图谱建立后，我们将大量工具信息与工具之间的依赖关系表示与图谱上，并且通过在图谱上进行深度优先遍历或者广度优先遍历等方式选择合适的工具调用路径。关于图谱利用的部分会在下一章详细介绍。
 
-\section{数据收集}
+\section{数据收集和清洗}
+
+\subsection{数据集介绍}
 
 目前较为大型的工具调用数据集有ToolBench\cite{Qin2023},API-Bank\cite{Li2023c},AgentBench\cite{Liu2023b}等。
 
@@ -43,98 +45,166 @@ ToolBench的工具调用轨迹数据为一个树状遍历结构，如下所示�
 
 【画图来展示轨迹数据结构】
 
-API-Bank包括xxx。
-
-数据格式如下：
-
-ToolAlpaca包括xxx。
-
-数据格式如下：
-
 \section{数据清洗}
 
-\subsection{数据清洗规则}
+通过大语言模型构建的工具调用轨迹数据可能会有重复调用/API工具编排错误等问题，
+并且数据集中的工具调用是以决策树的方式组织的，需要从中获得正确的工具路径。
+基于上述问题，我们对工具调用轨迹数据进行了一些清洗，主要筛选方式如下：
 
-1. 数据质量（只要对的路径，只要对的api）
+\begin{itemize}
+  \item \textbf{删除失败工具调用轨迹}:工具调用轨迹数据最后会对用户需求进行正面解答或放弃，我们只保留成功调用的API工具调用轨迹，删除无法得到结果的工具调用轨迹。
+  \item \textbf{删除过长工具调用轨迹}:通过数据分析，我们发现ToolBench中的工具轨迹数据的API路径长度不一，平均的调用路径长度为4，但是极个别的API工具调用路径长度达到了20。
+  过长的工具调用轨迹通常表示提供给大语言模型智能体的工具无法很好地完成该任务，导致工具调用一直在失败，
+  因此我们将工具调用轨迹数据长度作为筛选指标，筛选掉长度大于8的API调用轨迹。因为这些API调用轨迹的API工具数量过多，无法进行有效的图谱构建。
+  \item \textbf{删除无效工具节点}:在筛选优质工具轨迹后，我们还需要对工具轨迹数据进行清洗，得到在决策树上的正确的那一条路径。主要分为两种方式：1.去重，即对于同一个工具，如果有多个API的重复调用，我们只保留最后一次该API的成功调用记录。2.删除失败工具，如果工具调用轨迹中存在工具调用失败的情况，那么我们从轨迹中删除该工具。最后得到的应该是一个线性的调用轨迹。
+\end{itemize}
 
-2. 工具质量（太长的不要）
-
-3. 不需要 
-
-\subsection{ToolBench数据清洗}
-
-基于历史的API工具调用结果，GPT-3.5最后会得出一个”Final Answer“即正面回答用户需求，或者GPT-3.5会选择“Give Up”，即根据API工具调用的结果无法完成任务。而在API路径的寻找过程中，GPT-3.5也会不断遇到API工具错误的问题，或者是工具调用成功，但是不符合用户需求的情况，因此我们也需要对GPT-3.5得到的调用路径进行修剪，来删除错误的API工具节点，仅保留成功调用并获取正确答案的API节点路径。
-
-经过数据分析，在其中的工具轨迹数据中，共有xxx条，包含xxx词工具调用尝试，其中xxx次为失败调用，xxx次为成功调用。而在所有的工具调用数据中，得出“Final Answer”的有xx条，占xx\%。选择“Give Up”的有xx条，占xx\%.
+原始数据集中包含了xx条工具调用轨迹数据，
+其中平均的工具调用次数为xxx次，
+经过上述的筛选逻辑后，共剩下xxx条工具调用轨迹数据。
+我们基于该高质量的轨迹数据集建立工具图谱。
 
 \section{图谱构建}
 
-工具图的构建对于系统整体的性能和效率至关重要。
+工具图谱的构建对于系统整体的性能和效率至关重要。
 在这里，我们参考了ToolNet当中的设计\cite{Liu2024}
 将API工具作为图谱中的工具节点，
 工具节点之间的边上带有一个权值，该权值叫做“工具转移权值”，用于代表
 从当前工具出发，有多大的可能性会跳转到调用另一个工具的使用。
-因此，在该工具图谱中，权值的计算方式非常重要。边的权值应该有区分度，不然无法提供有效的信息。
+除了边上带有权值，工具节点自身也带有一个权值，该权值叫做“工具可用性权值”，用于表示该
+工具的可用性。
 
-除了对工具之间边上的权值进行定义，本文还提供了对于节点的权值定义，该权值定义为该节点的存活状态。
+因此，在该工具图谱中，权值的计算方式非常重要。边和点的权值应该有区分度，不然无法提供有效的信息。
 
-API工具具有时效性和多变性，为了让工具图谱能够更好地表示最新的工具状态，我们会根据调用历史对边和点的权值进行动态的更新。
+我们首先将会介绍基于历史工具调用数据的静态图谱构建方式，由于API工具具有时效性和多变性，我们还会对图上的节点、节点权值还有边上的权值进行动态的更新。
 
-\subsection{静态构建} 
+\subsection{静态构建}
 
-静态构建图的过程相对简单，与 2-gram 语言模型类似。设定 $D$ 为已完成任务的工具使用轨迹集合。
+静态构建图的过程相对简单，只需要遍历轨迹数据，并计算每两个节点之间的边权和点权值即可。
 
-每条轨迹由工具使用的顺序构成，例如 $[\text{tool}_1, \dots, \text{tool}_s, \dots, \text{end}]$。为了简化操作，我们将“结束”视为一种普通工具。
+设定 $D$ 为已完成任务的工具使用轨迹集合，每条轨迹由工具使用的顺序构成，
+
+\[
+\text{Trajectory} = [D_1, D_2, \ldots, D_n]
+\]
+
+假设每个工具的调用成功与否是一个二元变量 $x_i$，其中：
+
+\[
+x_i = 
+\begin{cases} 
+1, & \text{工具调用成功} \\
+-1, & \text{工具调用失败}
+\end{cases}
+\]
+
+为了简化操作，我们将“结束”视为一种普通工具，每个工具都与“结束”工具节点相连，
+当大语言模型智能体认为要结束调用过程时，就会选择“结束”工具。
 
 节点 $v_i$ 到 $v_j$ 的转移权重 $w_{i,j}$ 计算如下：
 
 \[
-w_{i,j} = \frac{\mathbb{E}_D[1(\text{tool}_s = v_i, \text{tool}_{s+1} = v_j)]}{\mathbb{E}_D[1(\text{tool}_s = v_i)]}
+w_{i,j} = \frac{\mathbb{E}_D[1(\text{tool}_s = v_i \land \text{tool}_{s+1} = v_j)]}{\mathbb{E}_D[1(\text{tool}_s = v_i)]}
 \]
 
-节点 $v_i$ 的可用性权重计算如下：
+其中，$\mathbb{E}_D[\cdot]$ 表示对轨迹集合 $D$ 上的期望操作，$1(\cdot)$ 是指示函数，当条件满足时取值为1，否则为0。
+该公式计算了工具 $v_i$ 被调用后紧接着调用工具 $v_j$ 的频率。
+
+除了关注工具之间的依赖关系，每个单独的工具的可用性和稳定性也是真实场景下重要考虑因素。
+在工具调用轨迹中，有一些工具调用会出现无访问权限或访问超时的错误信息。
+因此我们在工具图中通过对节点的权值进行计算和定义，通过点权来表示该工具的可用性或稳定性。
+节点 $v_i$ 的可用性权重 $\alpha_i$ 计算如下：
 
 \[
-\text{可用性权重} = \frac{\text{调用成功次数}}{\text{总次数}} \quad (0 \leq \text{可用性权重} \leq 1)
+\alpha_i = \frac{\sum_{s=1}^{n} 1(x_s = 1 \land \text{tool}_s = v_i)}{\sum_{s=1}^{n} 1(\text{tool}_s = v_i)} \quad (0 \leq \alpha_i \leq 1)
 \]
 
+这里，$\alpha_i$ 表示工具 $v_i$ 的调用成功率，是该工具在轨迹中成功调用的次数与其总调用次数的比值。
+因此该权值的范围是0-1，越接近1，表示该工具的可用性越高，越接近0，表示该工具的可用性越低。
 
-\subsection{动态更新}  
+通过对筛选后的工具轨迹数据进行上述计算，我们得到了工具图谱的初始静态图谱。
 
-1. 对于新加入的api工具
-2. 对于新产生的调用轨迹
+\subsection{动态更新}
 
-工具是动态变化的，具有生命周期，有些可能会随着时间的推移不再被开发者维护。
-因此，图中边的权重需要及时调整，这使得静态构建无法应对。
-此外，通常情况下，工具使用轨迹的数据量并不充足，
-尤其是对于像 ChatGPT 上新出现的插件。
-在这种情况下，动态构建 $G$ 变得至关重要。 
+基于上述方法构建的静态工具图谱，本文还提出了对边权和点权的动态更新。
+动态更新对于工具图谱的构建至关重要，原因主要包括以下几点：
+1. \textbf{新工具的初始化与数据稀缺问题}：当一个新的 API 工具被引入时，由于缺乏历史调用数据，无法通过传统的静态方法来初始化它的节点信息。在许多场景下，工具使用轨迹的数据量往往十分有限。或者在加入了新的工具节点时，这些新加入的节点并没有工具调用轨迹数据，因此难以判断该工具与其他工具之间的跳转关系。因此，我们希望能够利用大语言模型（LLM）的内在知识来对这些新工具进行初步的节点初始化，解决数据稀缺问题，并为工具的进一步使用提供一个合理的起点。
+2. \textbf{用户偏好的动态变化}：在实际应用中，随着用户行为的变化，新的调用轨迹会不断生成。这些新轨迹反映了用户的真实偏好，因此需要及时添加到工具图谱中，使其能够反映最新的用户需求。
+3. \textbf{工具的生命周期变化}：工具是动态变化的，随着时间推移，有些工具可能会因为开发者的弃用或其他原因而逐渐失去支持。静态构建无法反映这些变化，而需要通过动态更新来调整图中的边权重，确保图谱能够保持对工具现状的准确性。
 
-图 $G$ 可以通过静态方法初始化，
-或者初始化为一个完全连接的无信息图。
-随后，动态构建会在生成工具使用轨迹和更新图 $G$ 之间进行迭代。
-轨迹生成的过程与第 3 节中所描述的相同。
-图 $G$ 的更新尤为关键。
-由于可用的工具使用轨迹数量有限，因此需要对每条轨迹进行细致的检查。
-LLM 作为工具评估器，将整个轨迹作为输入，
-对每个使用的工具进行打分。
-打分范围为 $[-3, 3]$ 的离散整数。
-评估工具相当于评估图中被访问的节点。
-我们用 $\Delta_i^{(n)}$ 表示第 $n$ 次迭代中节点 $v_i$ 的评估分数。
-累积得分 $s_i^{(n)}$ 计算如下：
+动态更新发生在两个时间节点：1.产生了新的工具调用轨迹 2.添加了新的工具到工具图谱。
+以下是对于边权和点权更新的具体阐述。
+
+\subsubsection{边权的动态更新}
+
+动态更新过程
+
+对图 \( G \) 的更新尤为关键。由于可用工具轨迹的数量有限，我们需要对每一条轨迹进行细致检查。
+LLM 作为工具的评估者，将整个轨迹作为输入，评估每个工具节点的表现。
+
+每个工具的评分范围为 \( [-3, 3] \) 的离散整数，
+用于反映工具在调用过程中的表现。
+我们用 \( \Delta_i^{(n)} \) 表示在第 \( n \) 次迭代中节点 \( v_i \) 的评估得分。
+节点 \( v_i \) 的累积得分 \( s_i^{(n)} \) 计算如下：
 
 \[
 s_i^{(n)} = \sum_{k=1}^{n} \Delta_i^{(k)}
 \]
-节点 $v_i$ 到 $v_j$ 的转移权重 $w_{i,j}^{(n)}$ 的更新公式如下：
+
+该公式对节点 \( v_i \) 在每次迭代中的评分进行累积，为后续的转移权重更新提供基础。
+
+转移权重的更新
+
+节点 \( v_i \) 到 \( v_j \) 的转移权重 \( w_{i,j}^{(n)} \) 在第 \( n \) 次迭代中的更新公式如下：
+
 \[
 w_{i,j}^{(n)} = \beta w_{i,j}^{(0)} + (1 - \beta) \Delta w_{i,j}^{(n)}
 \]
-其中，$\Delta w_{i,j}^{(n)}$ 是用于更新转移权重的归一化梯度：
+
+其中，\( w_{i,j}^{(0)} \) 是初始的转移权重，\( \beta \) 是控制初始权重与动态更新之间平衡的超参数，\( \Delta w_{i,j}^{(n)} \) 是用于更新转移权重的归一化梯度，计算公式如下：
+
 \[
 \Delta w_{i,j}^{(n)} = \frac{f(s_i^{(n)})}{\sum_{v_j \in \text{oneigh}(v_i)} f(s_j^{(n)})}
 \]
-函数 $f(x)$ 将累积分数映射到 $(0,+\infty)$：
+
+该公式通过累积分数 \( s_i^{(n)} \) 和 \( s_j^{(n)} \) 来更新转移权重，确保工具之间的转移反映最新的评估结果。
+
+\subsubsection{点权的动态更新}
+
+在点权的动态更新中，我们通过分析新生成的工具调用轨迹来调整工具的可用性权重。设调用轨迹为：
+
+\[
+\text{Trajectory} = [D_1, D_2, \ldots, D_n]
+\]
+
+对于每个工具 \( D_i \) 的调用结果记作 \( x_i \)，其中：
+
+- \( x_i = -1 \) 表示调用出错，
+- \( x_i = +1 \) 表示调用成功。
+
+在这里，出错的调用情况指的是 API 工具本身存在可用性问题，例如遇到状态码“403 Forbidden”、“408 Request Timeout”等。
+
+根据调用结果，我们可以对点权的分数进行更新。更新公式如下：
+
+\[
+v_i^{(n)} = \beta v_i^{(0)} + (1 - \beta) \Delta v_i^{(n)}
+\]
+
+其中：
+- \( v_i^{(0)} \) 是工具 \( D_i \) 的初始权重，
+- \( \beta \) 是控制初始权重与动态更新之间平衡的超参数，其值会根据错误信息的严重程度进行调整，
+- \( \Delta v_i^{(n)} \) 是用于更新权重的归一化梯度，计算公式如下：
+
+\[
+\Delta v_i^{(n)} = \frac{f(s_i^{(n)})}{\sum_{D_j \in \text{oneigh}(D_i)} f(s_j^{(n)})}
+\]
+
+在此公式中，$f(s_i^{(n)})$ 是累积分数，通过反映工具 \( D_i \) 的评估结果，确保工具之间的转移权重反映最新的使用情况和反馈。
+
+\subsubsection{分数映射函数}
+
+函数 $f(x)$ 用于将累积分数映射到 $(0, +\infty)$ 的范围内，从而确保在权重更新过程中生成正值。归一化的必要性在于，它能够确保所有工具的表现有效比较，避免负值对权重更新造成不良影响。具体而言，映射函数确保所有工具的权重更新结果均为正值，这对于构建有效的工具图谱至关重要。同时，函数通过灵活处理正负分数，使算法在不同情境下保持良好表现，保持各工具之间的相对表现，从而提升模型的准确性和稳定性。函数定义如下：
+
 \[
 f(x) :=
 \begin{cases}
@@ -142,10 +212,8 @@ f(x) :=
 e^{\alpha x}, & \text{if } x < 0
 \end{cases}
 \]
-其中 $f(x)$ 是累积分数与更新梯度之间的映射函数。
-$\alpha$ 和 $\beta$ 是超参数，$\alpha$ 控制更新速度，
-$\beta$ 在初始权重 $w_{i,j}^{(0)}$ 和动态构建学习得到的权重之间插值。
 
+在这个函数中，$\alpha$ 是控制映射函数行为的超参数。对于正分数，映射为线性函数 $f(x) = \alpha x + 1$，使得得分的正向提升以线性方式反映在权重更新中。对于负分数，映射为指数衰减函数 $f(x) = e^{\alpha x}$，这保证了即使在评分较低的情况下，权重的更新也会保持在一个合理的范围内。
 
 \section{API召回模型训练}
 
@@ -176,14 +244,15 @@ $\beta$ 在初始权重 $w_{i,j}^{(0)}$ 和动态构建学习得到的权重之�
 要求模型生成类似但是功能上无法满足用户需求的工具描述。
 通过这样遍历工具描述生成负样本，可以生成一组高质量的困难负样本供模型学习。
 
+本文分别使用简单负样本构造和困难负样本构造方法构造了xxx条数据和xxx条数据，分别对模型进行了微调。
+同时，在测试集中，我们除了使用从ToolBench中筛选得到的数据。
+
 \subsection{模型训练及超参数设置}
 
 在进行向量模型微调之前，选择合适的基座模型是一个关键步骤，这将直接影响到微调后模型的性能以及效率。在选择基座模型时，通常需要考虑到模型的规模、大小，模型支持的语言，模型的训练任务等。
 
 基于上述原因，本工作在对比性能后选择了BGE-m3模型作为基础模型进行训练。理由如下：
 
-本文分别使用简单负样本构造和困难负样本构造方法构造了xxx条数据和xxx条数据，分别对模型进行了微调。
-同时，在测试集中，我们除了使用从ToolBench中筛选得到的数据。
 
 本工作基于BGE-m3进行了微调。实现过程中将epoch数量设置为xx，学习率设置为3e-5进行学习。
 模型大小为xxx，在xxx芯片上训练了xxx得到了结果。
@@ -206,7 +275,7 @@ $\beta$ 在初始权重 $w_{i,j}^{(0)}$ 和动态构建学习得到的权重之�
   \end{tabular}
 \end{table}
 
-\section{插图}
+% \section{插图}
 
 % 插图功能是利用 \TeX{} 的特定编译程序提供的机制实现的，不同的编译程序支持不同的图
 % 形方式。有的同学可能听说“\LaTeX{} 只支持 EPS”，事实上这种说法是不准确的。\XeTeX{}
@@ -216,76 +285,76 @@ $\beta$ 在初始权重 $w_{i,j}^{(0)}$ 和动态构建学习得到的权重之�
 % 件中的位置对应，这也是刚使用 \LaTeX{} 同学可能遇到的问题。如果要强制固定浮动图形
 % 的位置，请使用 \pkg{float} 宏包，它提供了 \texttt{[H]} 参数。
 
-\subsection{单个图形}
+% \subsection{单个图形}
 
 % 图要有图题，研究生图题采用中英文对照，并置于图的编号之后，图的编号和图题应置于图
 % 下方的居中位置。引用图应在图题右上角标出文献来源。文中必须有关于本插图的提示，如
 % “见图~\ref{fig:energy-distrib}”、“如图~\ref{fig:energy-distrib} 所示”等。该页空
 % 白不够排写该图整体时，则可将其后文字部分提前排写，将图移到次页。
 
-\begin{figure}[!htp]
-  \centering
-  \begin{tikzpicture}
-    \begin{axis}[
-      width=12cm,
-      height=9cm,
-      xmin=0, xmax=7,
-      xlabel={$r$ (\unit{\milli\metre})},
-      ymin=-1000, ymax=11000,
-      ylabel={Energy (\unit[per-mode=symbol]{\watt\per\cubic\metre})},
-      scaled ticks=false,
-      tick label style={
-        /pgf/number format/1000 sep=,
-        font={\zihao{-5}},
-      },
-      minor tick num=1,
-      tick pos=left,
-      tick align=outside,
-      tick style={thin,black},
-    ]
-      \addplot [only marks,mark=square*] 
-        table [x={radial}, y={energy}, col sep=comma] 
-        {./assets/energy-distrib.csv};
-      \node at (2,6000) 
-        {$q_{v}=\dfrac{\sigma\omega^{2}|\mathbf{A}|^{2}}{2}$};
-    \end{axis}
-  \end{tikzpicture}
-  \bicaption{内热源沿径向的分布}{Energy distribution along radial}
-  \label{fig:energy-distrib}
-\end{figure}
+% \begin{figure}[!htp]
+%   \centering
+%   \begin{tikzpicture}
+%     \begin{axis}[
+%       width=12cm,
+%       height=9cm,
+%       xmin=0, xmax=7,
+%       xlabel={$r$ (\unit{\milli\metre})},
+%       ymin=-1000, ymax=11000,
+%       ylabel={Energy (\unit[per-mode=symbol]{\watt\per\cubic\metre})},
+%       scaled ticks=false,
+%       tick label style={
+%         /pgf/number format/1000 sep=,
+%         font={\zihao{-5}},
+%       },
+%       minor tick num=1,
+%       tick pos=left,
+%       tick align=outside,
+%       tick style={thin,black},
+%     ]
+%       \addplot [only marks,mark=square*] 
+%         table [x={radial}, y={energy}, col sep=comma] 
+%         {./assets/energy-distrib.csv};
+%       \node at (2,6000) 
+%         {$q_{v}=\dfrac{\sigma\omega^{2}|\mathbf{A}|^{2}}{2}$};
+%     \end{axis}
+%   \end{tikzpicture}
+%   \bicaption{内热源沿径向的分布}{Energy distribution along radial}
+%   \label{fig:energy-distrib}
+% \end{figure}
 
-\subsection{多个图形}
+% \subsection{多个图形}
 
 % 简单插入多个图形的例子如图~\ref{fig:SRR} 所示。这两个水平并列放置的子图共用一个
 % 图形计数器，没有各自的子图题。
 
-\begin{figure}[!htp]
-  \centering
-  \includegraphics[height=2cm]{../assets/1.png}
-  \hspace{1cm}
-  \includegraphics[height=2cm]{sjtu-vi-badge-red.pdf}
-  \bicaption{中文题图}{English caption}
-  \label{fig:SRR}
-\end{figure}
+% \begin{figure}[!htp]
+%   \centering
+%   \includegraphics[height=2cm]{../assets/1.png}
+%   \hspace{1cm}
+%   \includegraphics[height=2cm]{sjtu-vi-badge-red.pdf}
+%   \bicaption{中文题图}{English caption}
+%   \label{fig:SRR}
+% \end{figure}
 
 如果多个图形相互独立，并不共用一个图形计数器，那么用 \texttt{minipage} 或者
-\texttt{parbox} 就可以，如图~\ref{fig:parallel1} 与图~\ref{fig:parallel2}。
+% \texttt{parbox} 就可以，如图~\ref{fig:parallel1} 与图~\ref{fig:parallel2}。
 
-\begin{figure}[!htp]
-  \centering
-  \begin{minipage}{0.48\textwidth}
-    \centering
-    \includegraphics[height=1.7cm]{sjtu-vi-name-red.pdf}
-    \caption{并排第一个图}
-    \label{fig:parallel1}
-  \end{minipage}\hfill
-  \begin{minipage}{0.48\textwidth}
-    \centering
-    \includegraphics[height=1.7cm]{sjtu-vi-name-red.pdf}
-    \caption{并排第二个图}
-    \label{fig:parallel2}
-  \end{minipage}
-\end{figure}
+% \begin{figure}[!htp]
+%   \centering
+%   \begin{minipage}{0.48\textwidth}
+%     \centering
+%     \includegraphics[height=1.7cm]{sjtu-vi-name-red.pdf}
+%     \caption{并排第一个图}
+%     \label{fig:parallel1}
+%   \end{minipage}\hfill
+%   \begin{minipage}{0.48\textwidth}
+%     \centering
+%     \includegraphics[height=1.7cm]{sjtu-vi-name-red.pdf}
+%     \caption{并排第二个图}
+%     \label{fig:parallel2}
+%   \end{minipage}
+% \end{figure}
 
 % 如果要为共用一个计数器的多个子图添加子图题，建议使用较新的 \pkg{subcaption} 宏
 % 包，不建议使用 \pkg{subfigure} 或 \pkg{subfig} 等宏包。
@@ -294,48 +363,48 @@ $\beta$ 在初始权重 $w_{i,j}^{(0)}$ 和动态构建学习得到的权重之�
 % 下，子图号用 a)、b) 等表示。也可以使用 \pkg{subcaption} 宏包的 \cs{subcaption}
 % （放在 minipage中，用法同 \cs{caption}）。
 
-\pkg{subcaption} 宏包也提供了 \pkg{subfigure} 和 \pkg{subtable} 环境，如
-图~\ref{fig:subfigure}。
+% \pkg{subcaption} 宏包也提供了 \pkg{subfigure} 和 \pkg{subtable} 环境，如
+% 图~\ref{fig:subfigure}。
 
-\begin{figure}[!htp]
-  \centering
-  \begin{subfigure}{0.3\textwidth}
-    \centering
-    \includegraphics[height=2cm]{sjtu-vi-badge-red.pdf}
-    \caption{校徽}
-  \end{subfigure}
-  \hspace{1cm}
-  \begin{subfigure}{0.4\textwidth}
-    \centering
-    \includegraphics[height=1.7cm]{sjtu-vi-name-red.pdf}
-    \caption{校名。注意这个图略矮些，subfigure 中同一行的子图在顶端对齐。}
-  \end{subfigure}
-  \caption{包含子图题的范例（使用 subfigure）}
-  \label{fig:subfigure}
-\end{figure}
+% \begin{figure}[!htp]
+%   \centering
+%   \begin{subfigure}{0.3\textwidth}
+%     \centering
+%     \includegraphics[height=2cm]{sjtu-vi-badge-red.pdf}
+%     \caption{校徽}
+%   \end{subfigure}
+%   \hspace{1cm}
+%   \begin{subfigure}{0.4\textwidth}
+%     \centering
+%     \includegraphics[height=1.7cm]{sjtu-vi-name-red.pdf}
+%     \caption{校名。注意这个图略矮些，subfigure 中同一行的子图在顶端对齐。}
+%   \end{subfigure}
+%   \caption{包含子图题的范例（使用 subfigure）}
+%   \label{fig:subfigure}
+% \end{figure}
 
-搭配 \pkg{bicaption} 宏包时，可以启用 \cs{subcaptionbox} 和 \cs{subcaption} 的双
-语变种 \cs{bisubcaptionbox} 和 \cs{bisubcaption}，如图~\ref{fig:bisubcaptionbox}
-所示。
+% 搭配 \pkg{bicaption} 宏包时，可以启用 \cs{subcaptionbox} 和 \cs{subcaption} 的双
+% 语变种 \cs{bisubcaptionbox} 和 \cs{bisubcaption}，如图~\ref{fig:bisubcaptionbox}
+% 所示。
 
-\begin{figure}[!hbtp]
-  \centering
-  \bisubcaptionbox{$R_3 = 1.5\text{mm}$ 时轴承的压力分布云图}%
-                  {Pressure contour of bearing when $R_3 = 1.5\text{mm}$}%
-                  [6.4cm]{\includegraphics[height=3cm]{example-image-a.pdf}}
-  \hspace{1cm}
-  \bisubcaptionbox{$R_3 = 2.5\text{mm}$ 时轴承的压力分布云图}%
-                  {Pressure contour of bearing when $R_3 = 2.5\text{mm}$}%
-                  [6.4cm]{\includegraphics[height=3cm]{example-image-b.pdf}}
-  \bicaption{包含子图题的范例（使用 subcaptionbox）}
-            {Example with subcaptionbox}
-  \label{fig:bisubcaptionbox}
-\end{figure}
+% \begin{figure}[!hbtp]
+%   \centering
+%   \bisubcaptionbox{$R_3 = 1.5\text{mm}$ 时轴承的压力分布云图}%
+%                   {Pressure contour of bearing when $R_3 = 1.5\text{mm}$}%
+%                   [6.4cm]{\includegraphics[height=3cm]{example-image-a.pdf}}
+%   \hspace{1cm}
+%   \bisubcaptionbox{$R_3 = 2.5\text{mm}$ 时轴承的压力分布云图}%
+%                   {Pressure contour of bearing when $R_3 = 2.5\text{mm}$}%
+%                   [6.4cm]{\includegraphics[height=3cm]{example-image-b.pdf}}
+%   \bicaption{包含子图题的范例（使用 subcaptionbox）}
+%             {Example with subcaptionbox}
+%   \label{fig:bisubcaptionbox}
+% \end{figure}
 
 
-\section{表格}
+% \section{表格}
 
-\subsection{基本表格}
+% \subsection{基本表格}
 
 % 编排表格应简单明了，表达一致，明晰易懂，表文呼应、内容一致。表题置于表上，研究生
 % 学位论文可以用中、英文两种文字居中排写，中文在上，也可以只用中文。
@@ -346,25 +415,25 @@ $\beta$ 在初始权重 $w_{i,j}^{(0)}$ 和动态构建学习得到的权重之�
 % \cs{bottomrule}。它们与 \pkg{longtable} 能很好的配合使用。
 
 
-\begin{table}[!hpt]
-  \caption[一个颇为标准的三线表]{一个颇为标准的三线表\footnotemark}
-  \label{tab:firstone}
-  \centering
-  \begin{tabular}{@{}llr@{}} \toprule
-    \multicolumn{2}{c}{Item} \\ \cmidrule(r){1-2}
-    Animal & Description & Price (\$)\\ \midrule
-    Gnat  & per gram  & 13.65 \\
-          & each      & 0.01 \\
-    Gnu   & stuffed   & 92.50 \\
-    Emu   & stuffed   & 33.33 \\
-    Armadillo & frozen & 8.99 \\ \bottomrule
-  \end{tabular}
-\end{table}
-\footnotetext{这个例子来自
-  \href{https://mirrors.sjtug.sjtu.edu.cn/ctan/macros/latex/contrib/booktabs/booktabs.pdf}%
-  {《Publication quality tables in LaTeX》}（\pkg{booktabs} 宏包的文档）。这也是
-  一个在表格中使用脚注的例子，请留意与 \pkg{threeparttable} 实现的效果有何不
-  同。}
+% \begin{table}[!hpt]
+%   \caption[一个颇为标准的三线表]{一个颇为标准的三线表\footnotemark}
+%   \label{tab:firstone}
+%   \centering
+%   \begin{tabular}{@{}llr@{}} \toprule
+%     \multicolumn{2}{c}{Item} \\ \cmidrule(r){1-2}
+%     Animal & Description & Price (\$)\\ \midrule
+%     Gnat  & per gram  & 13.65 \\
+%           & each      & 0.01 \\
+%     Gnu   & stuffed   & 92.50 \\
+%     Emu   & stuffed   & 33.33 \\
+%     Armadillo & frozen & 8.99 \\ \bottomrule
+%   \end{tabular}
+% \end{table}
+% \footnotetext{这个例子来自
+%   \href{https://mirrors.sjtug.sjtu.edu.cn/ctan/macros/latex/contrib/booktabs/booktabs.pdf}%
+%   {《Publication quality tables in LaTeX》}（\pkg{booktabs} 宏包的文档）。这也是
+%   一个在表格中使用脚注的例子，请留意与 \pkg{threeparttable} 实现的效果有何不
+%   同。}
 
 % \subsection{复杂表格}
 
@@ -394,75 +463,6 @@ $\beta$ 在初始权重 $w_{i,j}^{(0)}$ 和动态构建学习得到的权重之�
 %   \end{threeparttable}
 % \end{table}
 
-% 如某个表需要转页接排，可以用 \pkg{longtable} 实现。接排时表题省略，表头应重复书
-% 写，并在右上方写“续表 xx”，如表~\ref{tab:performance}。
-
-% \begin{ThreePartTable}
-%   \begin{TableNotes}
-%     \item[a] 一个脚注
-%     \item[b] 另一个脚注
-%   \end{TableNotes}
-%   \begin{longtable}[c]{c*{6}{r}}
-%     \bicaption{实验数据}{Experimental data}
-%     \label{tab:performance} \\
-%     \toprule
-%     测试程序 & \multicolumn{1}{c}{正常运行} & \multicolumn{1}{c}{同步}
-%       & \multicolumn{1}{c}{检查点} & \multicolumn{1}{c}{卷回恢复}
-%       & \multicolumn{1}{c}{进程迁移} & \multicolumn{1}{c}{检查点} \\
-%     & \multicolumn{1}{c}{时间 (s)} & \multicolumn{1}{c}{时间 (s)}
-%       & \multicolumn{1}{c}{时间 (s)} & \multicolumn{1}{c}{时间 (s)}
-%       & \multicolumn{1}{c}{时间 (s)} &  文件（KB）\\
-%     \midrule
-%     \endfirsthead
-%     \multicolumn{7}{l}{\textbf{续表~\thetable}} \\
-%     % 英语论文：\multicolumn{7}{r}{\textbf{Table~\thetable~(continued)}} \\
-%     \toprule
-%     测试程序 & \multicolumn{1}{c}{正常运行} & \multicolumn{1}{c}{同步}
-%       & \multicolumn{1}{c}{检查点} & \multicolumn{1}{c}{卷回恢复}
-%       & \multicolumn{1}{c}{进程迁移} & \multicolumn{1}{c}{检查点} \\
-%     & \multicolumn{1}{c}{时间 (s)} & \multicolumn{1}{c}{时间 (s)}
-%       & \multicolumn{1}{c}{时间 (s)} & \multicolumn{1}{c}{时间 (s)}
-%       & \multicolumn{1}{c}{时间 (s)}&  文件（KB）\\
-%     \midrule
-%     \endhead
-%     \hline
-%     \multicolumn{7}{r}{续下页}
-%     \endfoot
-%     \insertTableNotes
-%     \endlastfoot
-%     CG.A.2 & 23.05 & 0.002 & 0.116 & 0.035 & 0.589 & 32491 \\
-%     CG.A.4 & 15.06 & 0.003 & 0.067 & 0.021 & 0.351 & 18211 \\
-%     CG.A.8 & 13.38 & 0.004 & 0.072 & 0.023 & 0.210 & 9890 \\
-%     CG.B.2 & 867.45 & 0.002 & 0.864 & 0.232 & 3.256 & 228562 \\
-%     CG.B.4 & 501.61 & 0.003 & 0.438 & 0.136 & 2.075 & 123862 \\
-%     CG.B.8 & 384.65 & 0.004 & 0.457 & 0.108 & 1.235 & 63777 \\
-%     MG.A.2 & 112.27 & 0.002 & 0.846 & 0.237 & 3.930 & 236473 \\
-%     MG.A.4 & 59.84 & 0.003 & 0.442 & 0.128 & 2.070 & 123875 \\
-%     MG.A.8 & 31.38 & 0.003 & 0.476 & 0.114 & 1.041 & 60627 \\
-%     MG.B.2 & 526.28 & 0.002 & 0.821 & 0.238 & 4.176 & 236635 \\
-%     MG.B.4 & 280.11 & 0.003 & 0.432 & 0.130 & 1.706 & 123793 \\
-%     MG.B.8 & 148.29 & 0.003 & 0.442 & 0.116 & 0.893 & 60600 \\
-%     LU.A.2 & 2116.54 & 0.002 & 0.110 & 0.030 & 0.532 & 28754 \\
-%     LU.A.4 & 1102.50 & 0.002 & 0.069 & 0.017 & 0.255 & 14915 \\
-%     LU.A.8 & 574.47 & 0.003 & 0.067 & 0.016 & 0.192 & 8655 \\
-%     LU.B.2 & 9712.87 & 0.002 & 0.357 & 0.104 & 1.734 & 101975 \\
-%     LU.B.4 & 4757.80 & 0.003 & 0.190 & 0.056 & 0.808 & 53522 \\
-%     LU.B.8 & 2444.05 & 0.004 & 0.222 & 0.057 & 0.548 & 30134 \\
-%     EP.A.2 & 123.81 & 0.002 & 0.010 & 0.003 & 0.074 & 1834 \\
-%     EP.A.4 & 61.92 & 0.003 & 0.011 & 0.004 & 0.073 & 1743 \\
-%     EP.A.8 & 31.06 & 0.004 & 0.017 & 0.005 & 0.073 & 1661 \\
-%     EP.B.2 & 495.49 & 0.001 & 0.009 & 0.003 & 0.196 & 2011 \\
-%     EP.B.4 & 247.69 & 0.002 & 0.012 & 0.004 & 0.122 & 1663 \\
-%     EP.B.8 & 126.74 & 0.003 & 0.017 & 0.005 & 0.083 & 1656 \\
-%     SP.A.2 & 123.81 & 0.002 & 0.010 & 0.003 & 0.074 & 1854 \\
-%     SP.A.4 & 51.92 & 0.003 & 0.011 & 0.004 & 0.073 & 1543 \\
-%     SP.A.8 & 31.06 & 0.004 & 0.017 & 0.005 & 0.073 & 1671 \\
-%     SP.B.2 & 495.49 & 0.001 & 0.009 & 0.003 & 0.196 & 2411 \\
-%     SP.B.4 \tnote{a} & 247.69 & 0.002 & 0.014 & 0.006 & 0.152 & 2653 \\
-%     SP.B.8 \tnote{b} & 126.74 & 0.003 & 0.017 & 0.005 & 0.082 & 1755 \\
-%     \bottomrule
-%   \end{longtable}
-% \end{ThreePartTable}
 
 % \section{算法环境}
 
@@ -489,37 +489,3 @@ $\beta$ 在初始权重 $w_{i,j}^{(0)}$ 和动态构建学习得到的权重之�
 %     }
 %   }
 % \end{algorithm}
-
-% \section{代码环境}
-
-% 我们可以在论文中插入算法，但是不建议插入大段的代码。如果确实需要插入代码，建议使
-% 用 \pkg{listings} 宏包。
-
-% \begin{codeblock}[language=C]
-% #include <stdio.h>
-% #include <unistd.h>
-% #include <sys/types.h>
-% #include <sys/wait.h>
-
-% int main() {
-%   pid_t pid;
-
-%   switch ((pid = fork())) {
-%   case -1:
-%     printf("fork failed\n");
-%     break;
-%   case 0:
-%     /* child calls exec */
-%     execl("/bin/ls", "ls", "-l", (char*)0);
-%     printf("execl failed\n");
-%     break;
-%   default:
-%     /* parent uses wait to suspend execution until child finishes */
-%     wait((int*)0);
-%     printf("is completed\n");
-%     break;
-%   }
-
-%   return 0;
-% }
-% \end{codeblock}
