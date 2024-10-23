@@ -71,7 +71,7 @@ r_s = \text{API\_call}(a_s, \text{params}) \tag{6}
 
 \section{整体框架}
 
-图~\ref{fig:energy-distrib}展示了本章提出的基于深度优先遍历算法的动态工具编排算法的整体技术框架。
+图~\ref{fig:ch4-framework}展示了本章提出的基于深度优先遍历算法的动态工具编排算法的整体技术框架。
 
 该方法由以下几个部分组成：
 
@@ -85,12 +85,12 @@ r_s = \text{API\_call}(a_s, \text{params}) \tag{6}
   \vspace{1em}
   \centering
   \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
-  \includegraphics[height=7cm]{../assets/ch3-1.pdf}
-  \bicaption{整体框架}{Framework}
-  \label{fig:SRR}
+  \includegraphics[height=6cm]{../assets/ch3-1.pdf}
+  \bicaption{整体框架}{Overview of the Dynamic Tool Selection Framework}
+  \label{fig:ch4-framework}
 \end{figure}
 
-\section{算法实现}
+\section{具体实现}
 
 \subsection{任务改写与子任务拆解模块}
 
@@ -256,7 +256,7 @@ coltitle=white, colbacktitle=titlecolor, title=An Example for Response Generatio
 
 通过分析我们在ToolBench中的API响应示例，其中一个API的平均响应字符串长度为xxx个字符。经过响应压缩后，最长的响应也不超过1024个字符。通过这种方式，我们有效降低了xx\%的超出上下文的情况，平均每个API响应结果节约了xx个字符。
 
-（todo，做实验）
+（todo，实验部分待补充）
 
 \section{实验与评估}
 
@@ -341,13 +341,18 @@ API-Bank。API-Bank\cite{Li2023}是另一个公开的工具调用数据集，作
 
 \subsection{实验结果}
 
-实验设置
+实验设置xxx。
+
+结果画个表。
+
+有哪些提升画个表。
 
 \label{subsec:exp_results}
 
 \subsection{错误分析}
 \label{subsec:error_analysis}
 
+对于失败的案例，分析到底是为什么会失败
 
 \section{本章小结}
 \label{sec:summary_chap4}

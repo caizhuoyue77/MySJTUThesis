@@ -19,16 +19,13 @@
 
 \section{系统需求分析}
 
-\indent 我们采用面向对象的需求分析方法，绘制了如图所示的系统用例图。
-
-“如图~\ref{fig:usecase} 所示”等。该页空
-白不够排写该图整体时，则可将其后文字部分提前排写，将图移到次页。
+\indent 我们采用面向对象的需求分析方法，绘制了如图~\ref{fig:usecase}所示的系统用例图。
 
 \begin{figure}[!htp]
   \vspace{1em}
   \centering
   \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
-  \includegraphics[height=7cm]{../assets/ch5-用例图.pdf}
+  \includegraphics[height=6cm]{../assets/ch5-用例图.pdf}
   \bicaption{系统用例图}{System Usecase Diagram}
   \label{fig:usecase}
 \end{figure}
@@ -60,19 +57,33 @@
 \section{系统设计与架构}
 本文设计的基于知识图谱和智能体的API编排与调用系统，整体的系统框架设计如图xx所示。系统主要包含四层：数据管理层、API编排层、API调用层和UI层。
 
-\subsection{交互方案设计}
+\section{交互方案设计}
 
+图~\ref{fig:system}为该系统的交互设计图。
 
-\subsection{系统架构设计}
+\begin{figure}[!htp]
+    \vspace{1em}
+    \centering
+    \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
+    \includegraphics[height=5cm]{../assets/ch5-交互设计图.pdf}
+    \bicaption{系统交互图}{System Usecase Diagram}
+    \label{fig:interaction}
+  \end{figure}
 
-\indent 本系统的架构将会从部署架构和软件架构来进行说明。
+\section{系统架构设计}
 
-部署架构。
+图~\ref{fig:system}为该系统的系统软件架构设计图。
 
-软件架构。
+\begin{figure}[!htp]
+    \vspace{1em}
+    \centering
+    \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
+    \includegraphics[height=8cm]{../assets/ch5-系统架构图.pdf}
+    \bicaption{系统用例图}{System Usecase Diagram}
+    \label{fig:system}
+  \end{figure}
 
-
-\subsection{数据管理层}
+\subsection{存储层}
 数据管理层主要负责下列内容的存储：
 \begin{enumerate}
     \item API知识图谱的存储
@@ -80,34 +91,34 @@
     \item 系统使用过程中的历史推理轨迹的存储，作为经验数据供后续参考
 \end{enumerate}
 
-\subsection{API编排层}
+\subsection{访问层}
+
+\subsection{功能层}
 API编排层主要实现本系统的动态API编排功能。该层主要包括以下几个部分：
 \begin{enumerate}
     \item \textbf{用户需求拆解模块}：通过大语言模型智能体机制，将用户的复杂、完整需求拆解为多个子需求，并对子需求逐一调用。
     \item \textbf{API推理轨迹检索模块}：根据子任务的任务描述，检索历史推理轨迹中相似任务，提供参考。
     \item \textbf{API知识图谱检索模块}：根据不同的检索模式，搜索API节点及相关信息作为返回。
     \item \textbf{基于图谱的DFS动态编排算法模块}：在知识图谱上进行搜索和回溯，得到最终的调用路径。
-\end{enumerate}
-该层的主要流程为：首先通过拆解模块将任务拆解为独立的子任务，然后针对每个子任务，检索类似任务作为参考，并检索相关API信息，构建提示词，基于大模型的推理能力和上下文生成结构化的API流程。
-
-\subsection{API调用层}
-API调用层主要负责根据API编排层生成的调用流程，获取调用参数并执行API调用。主要涉及到以下部分：
-\begin{itemize}
     \item \textbf{API参数获取模块}: 首先，我们获取得到对应API的参数信息以及用户的具体需求，提供给大语言模型让模型给出API所需的输入参数。
     \item \textbf{API调用模块}: 在该部分，会使用API参数获取模块的参数作为API输入来调用工具API，若执行成功则将JSON格式的调用结果传递到API调用结果总结模块。该部分设置了自动重试机制，若调用失败则自动重试3次，如果3次都失败则返回错误信息。
     \item \textbf{API调用结果总结模块}: 在执行并得到了API的调用结果后，将所有的API执行结果转化为自然语言的格式，将这些执行结果和用户原需求输入基于大语言模型的总结模块获取最终自然语言格式的总结内容。
-\end{itemize}
+\end{enumerate}
 
-\subsection{UI层}
+\subsection{接口层}
+
+
+
+\subsection{展示层}
 UI层是web前端页面，负责与用户直接交互，提供用户友好的界面。不同页面对应不同功能：
 \begin{itemize}
     \item \textbf{信息问答页面}：用户通过自然语言输入具体的需求，然后系统会进行API调用路径的编排并依次调用，最终将总结好的自然语言文本的结果也提供给用户。整体的交互方式与大模型多轮对话是相似的。
     \item \textbf{自定义API添加页面}：用户可以通过填写API的详细信息，如API的名称、API的调用链接、API的具体参数类型和参数描述信息等添加新的API。添加新API后还需要经过测试，确保API调用的有效性再添加到API仓库中。
     \item \textbf{API历史调用参考页面}：用户可以可视化的形式浏览历史API调用记录，并通过选择和配置参数的方式再次调用历史API调用链。
 \end{itemize}
-UI层代码是基于streamlit代码库实现的。
 
-\subsection{模块设计}
+
+\section{模块设计}
 
 图xx展示了系统详细的功能层次结构。本系统的详细功能主要包含：用户验证、数据管理、模型服务管理、API工作流编排、API调用问答、自定义API存储。
 
