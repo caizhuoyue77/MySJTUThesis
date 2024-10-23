@@ -85,7 +85,7 @@ r_s = \text{API\_call}(a_s, \text{params}) \tag{6}
   \vspace{1em}
   \centering
   \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
-  \includegraphics[height=6cm]{../assets/ch3-1.pdf}
+  \includegraphics[height=7cm]{../assets/ch4-整体框架图.pdf}
   \bicaption{整体框架}{Overview of the Dynamic Tool Selection Framework}
   \label{fig:ch4-framework}
 \end{figure}
@@ -108,34 +108,43 @@ r_s = \text{API\_call}(a_s, \text{params}) \tag{6}
 
 
 % 设置颜色
-\definecolor{bgcolor}{RGB}{240,240,240} % 背景颜色
-\definecolor{titlecolor}{RGB}{20,20,20} % 标题背景颜色
+% \definecolor{bgcolor}{RGB}{240,240,240} % 背景颜色
+% \definecolor{titlecolor}{RGB}{20,20,20} % 标题背景颜色
 
-\begin{center}
-% 使用 tcolorbox 创建背景
-\begin{tcolorbox}[colback=bgcolor, colframe=black, width=0.8\textwidth, boxrule=0.5mm, 
-coltitle=white, colbacktitle=titlecolor, title=An Example for Response Generation with GPT-4]
+% \begin{center}
+% % 使用 tcolorbox 创建背景
+% \begin{tcolorbox}[colback=bgcolor, colframe=black, width=0.8\textwidth, boxrule=0.5mm, 
+% coltitle=white, colbacktitle=titlecolor, title=An Example for Response Generation with GPT-4]
 
-% 使文字居中
+% % 使文字居中
 
-\textbf{Instruction Prompt:} You are currently in the response generation stage. You are given the output of selected tools that can be potentially used to solve the sub-task. Your goal is to generate a response to the user question based on the results from tools and your internal knowledge.
+% \textbf{Instruction Prompt:} You are currently in the response generation stage. You are given the output of selected tools that can be potentially used to solve the sub-task. Your goal is to generate a response to the user question based on the results from tools and your internal knowledge.
 
-\textbf{User Question:} I would like to know the value of 5 ounces of gold plus 1 million AMZN stocks in CNY.
+% \textbf{User Question:} I would like to know the value of 5 ounces of gold plus 1 million AMZN stocks in CNY.
 
-\textbf{Return from Tool Calling:} The stock price of AMZN is 130 USD, XAU USD is 1919.7605807522993, and the exchange rate between USD and YNC is 7.24.
+% \textbf{Return from Tool Calling:} The stock price of AMZN is 130 USD, XAU USD is 1919.7605807522993, and the exchange rate between USD and YNC is 7.24.
 
-\textbf{Output:} \textcolor{red}{Total value in CNY: Total value = Value of gold in CNY + Value of stocks in CNY = 69,495.87 + 941,200,000 = 941,269,495.87 CNY. Therefore, the combined value of 5 ounces of gold and 1 million Amazon stocks in Chinese Yuan is approximately 941,269,495.87 CNY.}
+% \textbf{Output:} \textcolor{red}{Total value in CNY: Total value = Value of gold in CNY + Value of stocks in CNY = 69,495.87 + 941,200,000 = 941,269,495.87 CNY. Therefore, the combined value of 5 ounces of gold and 1 million Amazon stocks in Chinese Yuan is approximately 941,269,495.87 CNY.}
 
-\end{tcolorbox}
+% \end{tcolorbox}
 
-\end{center}
+% \end{center}
 
 
 \subsection{基于深度优先遍历的动态搜索算法}
 
 为了更好地利用我们构建的工具图谱，并挖掘隐藏节点关系中的知识，我们开发了一个基于深度优先遍历的寻路算法。与“思维链”（Chain-of-Thought）或ReACT方法相比，该算法的优点在于能够防止错误传播，并对整体工具行动空间进行更深入的探索。
 
-我们提出的基于深度优先的寻路算法的流程图如下所示：
+图~\ref{fig:ch4-dfs}为本文提出的基于深度优先的寻路算法。
+
+\begin{figure}[!htp]
+  \vspace{1em}
+  \centering
+  \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
+  \includegraphics[height=8cm]{../assets/ch4-dfs算法.pdf}
+  \bicaption{基于深度优先的寻路算法}{Dynamic DFS Search on Tool Graph}
+  \label{fig:ch4-dfs}
+\end{figure}
 
 首先，由于图谱上的节点数量众多，选择初始节点是算法中非常关键的一步。在选择初始节点时，我们利用基于语义相似度的API召回器，得到与用户需求在语义上最相似的一组工具，让大语言模型进行选择，最终确定初始节点，并从该节点开始进行后续探索。
 
@@ -144,54 +153,6 @@ coltitle=white, colbacktitle=titlecolor, title=An Example for Response Generatio
 如果模型选择了下一步操作，我们将获取当前节点的邻居节点及其权值，并提供给大模型智能体。对于邻居节点的选择，我们会获取到当前节点权值最大的K个节点作为下一步操作。如果邻居节点不足5个，我们将重新调用API召回器，以补全5个选择的选项。模型会根据当前状态继续迭代选择，直到结束选择或放弃。
 
 如果模型选择回溯到上一节点，我们将在短期记忆模块中添加回溯步骤，并恢复到上一个节点的状态。将回溯步骤添加到短期记忆的原因是让模型记住在本次推理中之前采取的错误操作，避免后续重复选择不可行的工具。如果模型回溯到了初始节点，并且需要继续回溯，我们可以理解为基于当前的工具组，该任务不可行，即放弃任务执行。
-
-\begin{algorithm}[htb]
-    \caption{图谱节点选择算法}
-    \label{algo:algorithm}
-    \small
-    \SetAlgoLined
-    \KwData{用户需求 $user需求$}
-    \KwResult{选择合适的工具}
-  
-    // 选择初始节点\;
-    $initi
-    alNodes \gets API召回器(user需求)$\;
-    $selectedNode \gets LLM选择初始节点(initialNodes)$\;
-    
-    // 初始化深度优先搜索树\;
-    $dfsTree \gets \text{new Tree()}$\;
-    $dfsTree.addNode(selectedNode)$\;
-  
-    \While{true}{
-      $response \gets 调用API(selectedNode)$\;
-      
-      // 提供信息给大语言模型\;
-      $状态信息 \gets \{\text{工具轨迹}, \text{API响应}, \text{用户需求}\}$\;
-      $nextAction \gets LLM选择下一步操作(状态信息)$\;
-  
-      \eIf{nextAction == "选择下一节点"}{
-        $topNeighbors \gets 选择邻居节点(selectedNode)$\;
-        \If{length(topNeighbors) < 5}{
-          $topNeighbors \gets API召回器补全选择(selectedNode)$\;
-        }
-        $selectedNode \gets LLM选择下一个节点(topNeighbors)$\;
-        $dfsTree.addNode(selectedNode)$\;
-      }{
-        // 回溯逻辑\;
-        $短期记忆.add回溯步骤(dfsTree.currentNode())$\;
-        $selectedNode \gets dfsTree.backtrack()$\;
-  
-        \If{selectedNode == dfsTree.root() \&\& 需要继续回溯()}{
-          放弃任务()\;
-          break\;
-        }
-      }
-      
-      \If{模型结束选择()}{
-        break\;
-      }
-    }
-  \end{algorithm}
 
 \subsection{自我反思机制}
 
