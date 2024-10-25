@@ -300,7 +300,7 @@
 
 由于每个API的响应格式不是固定的，无法确定每个字段应该舍弃还是保留，因此我们采用大语言模型来分析示例响应，仅保留与用户需求相关的字段，以减小响应长度。
 
-图~\ref{}具体步骤包括：
+如图~\ref{fig:ch4-compression}，响应压缩的逻辑如下所示：
 
 \begin{figure}[!htp]
   \vspace{1em}
@@ -308,7 +308,7 @@
   \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
   \includegraphics[height=4cm]{../assets/ch4-响应压缩.pdf}
   \bicaption{响应压缩模块}{Compression of API responses}
-  \label{fig:ch4-framework}
+  \label{fig:ch4-compression}
 \end{figure}
 
 \begin{enumerate}
@@ -338,7 +338,6 @@
 在进行向量模型微调之前，选择合适的基座模型是一个关键步骤，这将直接影响到微调后模型的性能以及效率。
 在选择基座模型时，通常需要考虑到模型的规模、大小，模型支持的语言，模型的训练任务等。我们对bge-small,bge-m3,m3e,bce等
 常用的向量模型进行了实验，在对比性能后选择了bge-m3模型作为基础模型进行训练。
-
 
 本工作基于bge-m3进行了微调。实现过程中将epoch数量设置为xx，学习率设置为3e-5进行学习。
 模型大小为xxx，在xxx芯片上训练了xxx得到了结果。
@@ -438,7 +437,8 @@ ToolBench。ToolBench\cite{Qin2023}是一个公开的针对工具调用的数据
 
 \subsubsection{工具调用数据集构造}
 
-为了覆盖不同难度和复杂度的用户需求，我们参考ToolBench中的分类方法，选择了三个不同难度的任务类别：单工具任务、多工具集任务和多类别任务。
+为了覆盖不同难度和复杂度的用户需求，我们参考ToolBench中的分类方法，
+选择了三个不同难度的任务类别：单工具任务、多工具集任务和多类别任务。
 
 \begin{enumerate}
   \item \textbf{单工具任务} \\
