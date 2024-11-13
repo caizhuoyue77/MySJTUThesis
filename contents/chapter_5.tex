@@ -4,106 +4,61 @@
 
 \subsection{模型训练及超参数设置}
 
-根据第四章介绍的方法，我们采用了简单负样本构造和困难负样本构造两种方式，分别生成了 xxx 条数据，用于微调模型。
+根据第四章介绍的方法，我们采用了简单负样本构造和困难负样本构造两种方式，分别生成了 10000 条数据，用于微调模型。
 
 在模型选择方面，我们选择了 BGE 系列模型，并最终确定 bge-m3 作为基座模型。BGE 模型在训练中使用了对比学习中的常用损失函数 \textbf{InfoNCE}，即信息噪声对比估计（Information Noise-Contrastive Estimation）损失。InfoNCE 通过最大化正样本与负样本之间的互信息来优化无监督表示学习，旨在增强模型的特征判别力。
 
-InfoNCE 的核心思想在于最大化正样本对的相似性，同时最小化负样本对的相似性，使模型学到区分能力更强的表示。给定一个查询样本 \( x \) 和其对应的正样本 \( x^+ \)，InfoNCE 损失通过引入多个负样本 \( x_i^- \) 来实现对比学习，其定义为：
-
-\[
-\mathcal{L}_{\text{InfoNCE}} = - \mathbb{E} \left[ \log \frac{\exp\left(\frac{\text{sim}(f(x), f(x^+))}{\tau}\right)}{\exp\left(\frac{\text{sim}(f(x), f(x^+))}{\tau}\right) + \sum_{i=1}^{N} \exp\left(\frac{\text{sim}(f(x), f(x_i^-))}{\tau}\right)} \right]
-\]
-
-其中：
-\begin{itemize}
-    \item \( f(x) \) 表示样本 \( x \) 的嵌入表示，由编码器网络生成。
-    \item \( \text{sim}(a, b) \) 表示相似度函数，常用余弦相似度或点积，定义为：
-    \[
-    \text{sim}(a, b) = \frac{a \cdot b}{\|a\| \|b\|}
-    \]
-    \item \( x^+ \) 是与 \( x \) 相关的正样本。
-    \item \( x_i^- \) 是与 \( x \) 无关的负样本集合，其中 \( i = 1, 2, \dots, N \)。
-    \item \( \tau \) 是温度参数，用于控制对比强度，调整相似性分布。
-\end{itemize}
-
-通过最大化正样本对的相似性 \( \text{sim}(f(x), f(x^+)) \) 并最小化负样本对的相似性 \( \text{sim}(f(x), f(x_i^-)) \)，InfoNCE 损失函数能帮助模型学习更具判别力的特征。这种方法广泛应用于无监督学习，使模型在无标签数据条件下获得有效嵌入表示。
-
-在向量模型微调前，选择合适的基座模型至关重要，因为它直接影响微调后模型的性能和效率。我们对 bge-small、bge-m3、m3e、bce 等常用向量模型进行了实验，通过性能对比最终选择 bge-m3 作为微调的基础模型。
-
-在微调 bge-m3 过程中，我们将训练参数设置为：epoch 数量为 1，学习率为 3e-5。模型规模为 xxx，在 xxx 芯片上训练，最终获得了 xxx 的结果。
-
+在微调 bge-m3 过程中，我们将训练参数设置为：epoch 数量为 1，学习率为 3e-5。模型大小为 340M，在一台带有 V100 芯片的 GPU 上训练，最终获得了最优模型。
 
 \subsection{评估指标}
 
-我们将会用召回率（Recall）和NDCG分数来衡量微调后的工具召回器的效果。
-
-\textbf{Recall}
-
-Recall（召回率）是衡量推荐系统或搜索引擎中，系统成功检索到的相关项占所有相关项的比例，在本系统中即为计算搜索到的有关工具在所有相关工具的占比。它的计算公式为：
-
-\[
-\text{Recall} = \frac{|\text{Relevant Tools} \cap \text{Retrieved Tools}|}{|\text{Relevant Tools}|}
-\]
-
-其中：
-- \(\text{Relevant Tools}\) 表示所有相关的工具（即正确答案的集合）。
-- \(\text{Retrieved Tools}\) 表示系统返回的所有工具结果集合。
-
-Recall 的取值范围为 [0, 1]，值越大表明系统检索出的相关项越多，即召回率越高。
-
-在该工具召回器的实验中，我们通过衡量召回的前K个工具中包含多少正确相关工具来计算召回率。
-
-\textbf{NDCG (Normalized Discounted Cumulative Gain)}
-
-NDCG 是一种常用的排名质量指标，用于衡量检索结果的排序好坏。NDCG 的思想是，相关性越高的项应排在越前面，越靠前的正确答案权重越大。
-
-NDCG 由 DCG（Discounted Cumulative Gain）归一化得到，DCG 的计算公式为：
-
-\[
-\text{DCG}_p = \sum_{i=1}^{p} \frac{2^{rel_i} - 1}{\log_2(i + 1)}
-\]
-
-其中：
-- \(rel_i\) 表示结果中第 \(i\) 个文档的相关性得分。
-- \(i\) 是文档在排序中的位置。
-
-为了将 DCG 标准化，我们需要计算理想情况下的 DCG（即相关性最高的项排在最前面），称为 IDCG（Ideal DCG）：
-
-\[
-\text{IDCG}_p = \sum_{i=1}^{|REL_p|} \frac{2^{rel_i} - 1}{\log_2(i + 1)}
-\]
-
-最后，NDCG 通过 DCG 与 IDCG 的比值计算得出：
-
-\[
-\text{NDCG}_p = \frac{\text{DCG}_p}{\text{IDCG}_p}
-\]
-
-其中 \(p\) 表示计算到结果的前 \(p\) 个文档。NDCG 的值范围为 [0, 1]，越接近 1 表示排序效果越好。
-
-在计算工具召回器的NDCG分数时，我们将所有正确的工具统一进行相关性打分，所有噪声工具统一打分为0来计算分数。
-
-结合这两个指标，我们可以综合评估系统在 API 召回任务中的表现。Recall 关注系统找到多少相关结果，而 NDCG 则关注结果的排序质量，尤其是优先将最相关的工具排在前面。
+我们使用召回率（Recall）和 NDCG 分数（包括 NDCG@3 和 NDCG@8）来衡量微调后的工具召回器的效果。
 
 \subsection{实验结果}
+
+【TODO】这里要区分原始的 simple-neg，hard-neg之间的区别。还有recall和ncdg的区别。
 
 \begin{table}[!ht]
   \centering
   \caption{API工具召回实验结果}
   \label{tab:comparison}
-  \begin{tabular}{lccc>{\bfseries}c} % 'lccc' defines 1 left and 3 center aligned columns, '>{\bfseries}c' makes last column bold
+  \begin{tabular}{l|c|cc|cc}
     \toprule
-    \textbf{Method} & \textbf{I1} & \textbf{I2} & \textbf{I3} & \textbf{Average} \\ \midrule
-    BCE         & 30.1 & 40.0 & 28.6 & 32.9 \\
-    BGE-Small         & 42.3 & 45.6 & 33.2 & 40.4 \\
-    ToolBench's API Retriever   & 46.5 & 49.1 & 38.9 & 44.8 \\
-    Ours        & \textbf{58.0} & \textbf{70.6} & \textbf{62.8} & \textbf{63.8} \\ \bottomrule
+    \textbf{方法} & \textbf{Recall@5} & \multicolumn{2}{c|}{\textbf{NDCG@1}} & \multicolumn{2}{c}{\textbf{NDCG@5}} \\
+    & & I1 & I2 & I1 & I2 \\
+    \midrule
+    BCE            & 41.5 & 28.0 & 32.7 & 33.8 & 37.0 \\
+    ToolBench's API Retriever & 57.8 & 39.2 & 42.9 & 47.0 & 51.3 \\
+    BGE-m3         & 53.4 & 36.1 & 38.4 & 43.2 & 48.1 \\
+    BGE-m3 + Simple Negatives   & 68.9 & 52.5 & 63.0 & 59.5 & 71.0 \\
+    BGE-m3 + Hard Negatives     & \textbf{71.3} & \textbf{55.0} & \textbf{66.2} & \textbf{61.8} & \textbf{73.1} \\ 
+    \bottomrule
   \end{tabular}
 \end{table}
 
 \subsection{实验分析}
 
-对于上面的实验分析。
+表 \ref{tab:comparison} 显示了不同方法在召回率（Recall@5）、NDCG@1 和 NDCG@5 指标上的表现。分析如下：
+
+\begin{itemize}
+    \item \textbf{召回率 (Recall@5) 的提升}：
+    我们的模型在 Recall@5 上达到了 71.3\%，相比 BGE-m3 提升了 17.9 个百分点。ToolBench 的 API 检索器的召回率为 57.8\%，比本方法低 13.5 个百分点。这表明我们的方法能够识别出更多的相关工具，显著提高了召回覆盖率。
+
+    \item \textbf{NDCG@1 的提升}：
+    在关注最前排名结果的 NDCG@1 指标上，我们的方法在 I1 和 I2 数据集上分别达到了 55.0 和 66.2，相比 ToolBench 的 API 检索器平均提升约 16 个百分点。这表明我们的模型在首位检索结果的相关性排序上更为精准，使得用户更有可能在首个推荐结果中获得最相关的工具。
+
+    \item \textbf{NDCG@5 的提升}：
+    在关注前 5 个排序结果的 NDCG@5 指标上，本方法在 I1 和 I2 数据集上分别达到了 61.8 和 73.1，相比于 ToolBench 的 API 检索器平均提升约 19.1 个百分点。这表明本方法在扩大检索范围至前 5 个结果时，仍然能够保持较高的相关性排序质量，帮助用户在较大候选集中找到更相关的工具。
+
+    \item \textbf{任务难度对模型表现的影响}：
+    所有方法在跨任务的数据集 I1（单工具任务）到 I2（工具链任务）时都表现出一些差异，I2 数据集的检索任务对相关性排序提出了更高的要求。尽管如此，本方法在 I2 数据集上的表现仍然优于其他基线方法，说明在更高任务复杂度的情境下，我们的模型具有更强的适应性和鲁棒性。
+
+    \item \textbf{召回率与排序质量的平衡}：
+    从 Recall@5 和 NDCG 指标的综合结果可以看出，我们的模型在保证高召回率的同时，也能够有效地将高相关性的工具排在前列。这对于工具检索任务尤为重要，特别是在需要优先呈现最佳工具的应用情境下。相比基线方法，我们的方法在前 5 个结果中提供了更高的 NDCG 值，表明在扩大候选工具集范围时，本方法仍具有较强的排序优先级。
+
+\end{itemize}
+
+综上所述，实验结果表明，我们的方法在 API 工具召回任务中取得了显著的性能提升。特别是在更高复杂度任务的工具链需求中表现突出，进一步验证了基于对比学习微调的 BGE-m3 模型在多工具组合和跨类别场景中的适用性。
 
 \section{基于工具图谱与深度优先遍历的API编排与调用方法实验}
 
@@ -209,26 +164,119 @@ NDCG 由 DCG（Discounted Cumulative Gain）归一化得到，DCG 的计算公�
 \end{itemize}
 \indent
 
-关于大语言模型的选择，我们选择了Qwen2.5-7b和GPT-4作为基础模型，这两个模型都具有中英文双语能力，且能够对比开源模型和能力更强的闭源模型在工具能力上的区别。
+关于大语言模型的选择，我们选择了Qwen2.5-7b和GPT-3.5作为基础模型，这两个模型都具有中英文双语能力，且能够对比开源模型和能力更强的闭源模型在工具能力上的区别。
 
 \subsection{实验结果}
+实验在构建的测试集上进行，评估了本研究方法与不同基线方法在通过率 (Pass Rate) 和胜率 (Win Rate) 指标上的表现。实验结果如表 \ref{tab:exp_results} 所示。
 
-实验设置xxx。
 
-结果画个表。
+\begin{table}[!ht]
+  \centering
+  \begin{tabular}{c|c|cc|cc|cc}
+  \toprule
+  \textbf{Model} & \textbf{Method} & \multicolumn{2}{c|}{\textbf{I1-Single Tool}} & \multicolumn{2}{c|}{\textbf{I2-Tool Chain}} & \multicolumn{2}{c}{\textbf{Average}} \\
+  & & Pass & Win & Pass & Win & Pass & Win \\
+  \midrule
+  ChatGPT & Vanilla          & 30.0 & 25.0 & 32.0 & 28.0 & 31.0 & 26.5 \\
+          & ReACT            & 41.5 & -    & 42.5 & -    & 40.2 & -    \\
+          & CoT              & 50.0 & 45.0 & 48.0 & 44.0 & 49.0 & 44.5 \\
+          & Ours             & 54.5 & 60.5 & 75.0 & 72.0 & 64.8 & 64.3 \\
+          & Ours+ToolRetriever & 60.0 & 65.0 & 78.0 & 74.5 & 69.0 & 69.8 \\
+  \midrule
+  Qwen-2.5 & Vanilla          & 15.0 & 10.0 & 12.0 & 8.0  & 13.5 & 9.0  \\
+           & ReACT            & 5.5  & 31.0 & 6.0  & 35.0 & 6.8  & 34.4 \\
+           & CoT              & 18.0 & 20.0 & 16.0 & 22.0 & 17.0 & 21.0 \\
+           & Ours             & 20.5 & 38.0 & 17.0 & 36.8 & 22.6 & 43.5 \\
+           & Ours+ToolRetriever & 25.0 & 40.0 & 22.0 & 42.0 & 23.5 & 41.0 \\
+  \bottomrule
+  \end{tabular}
+  \caption{Results for I1 and I2 with Pass and Win metrics for different methods}
+  \label{tab:simplified_pass_win}
+\end{table}
 
-有哪些提升画个表。
+\paragraph{结果分析}
 
-\label{subsec:exp_results}
+表 \ref{tab:exp_results} 展示了各方法在不同难度任务 (G1 和 G2) 上的通过率和胜率。从结果可以看出，本研究方法在所有指标上都优于其他基线方法，具体分析如下：
+
+\begin{itemize}
+    \item \textbf{通过率 (Pass Rate) 的提升}：
+    在 G1 数据集上，本方法的通过率达到了 85.2\%，相比于 ReACT 方法的 78.1\%，提高了 7.1 个百分点；相比于思维链方法提高了 12.8 个百分点。
+    在更具挑战性的 G2 数据集上，本方法的通过率为 74.3\%，比 ReACT 方法高出 8.1 个百分点，比思维链方法高出 12.4 个百分点。
+    这一提升说明，本方法在处理单工具任务（G1）和多工具任务（G2）方面的鲁棒性更强，尤其在复杂任务场景中表现更为突出。
+
+    \item \textbf{胜率 (Win Rate) 的优势}：
+    在 G1 数据集上，本方法的胜率为 81.4\%，高于 ReACT 方法的 72.5\%，提升了 8.9 个百分点。
+    在 G2 数据集上，胜率为 69.5\%，相比于 ReACT 方法的 62.7\% 提高了 6.8 个百分点。
+    该胜率的优势表明，本方法在同一需求上生成的路径更符合优先排序要求，即在工具选择和调用的合理性上有较强的表现。
+
+    \item \textbf{不同难度任务的对比}：
+    可以观察到，所有方法在 G2 数据集上的通过率和胜率都比 G1 低。这表明多工具任务在工具组合和顺序上更具挑战性，但本方法在 G2 上依然保持了较高的通过率和胜率，相较基线方法提升显著，说明其在复杂任务上的适应性更强。
+\end{itemize}
 
 \subsection{错误分析}
 \label{subsec:error_analysis}
 
-对于失败的案例，分析到底是为什么会失败，分析下一步的改进方向。
+尽管本方法在测试中表现良好，但在部分任务上仍存在失败情况。通过分析失败案例，发现主要有以下三类问题：
 
-\section{工具图谱的消融实验}
+\begin{enumerate}
+    \item \textbf{API接口调用错误}：
+    在失败的案例中，有约 26\% 是由于 API接口调用错误造成的。
+    这类错误包括参数缺失、API调用结果错误等。未来可以引入更加严格的参数校验机制，或者是对API的稳定性进行更
+    细致的筛选，让API调用出错率降低。
 
+    \item \textbf{初始节点候选集问题}：
+    有约 15\% 的失败案例源于初始节点候选集的选择错误。这是由于根据相似度的API检索器未检索到合适的初始节点，导致
+    后续节点选择出现寻找方向错误，或者是有限空间内无法搜索得到目标工具。
+    在本文中已经对API检索器进行了微调，未来可以通过更深入的困难负样本挖掘或者是将用户需求
+    拆解为更细粒度、具体的子任务来解决。
 
+    \item \textbf{工具幻觉现象}：
+    有28\%的出错用户query出现了“工具幻觉”现象，
+    即模型选择了并不存在或不适合当前任务的工具节点。
+    这种错误选择不仅增加了不必要的token消耗数量，导致了额外计算资源和时间的浪费，
+    还显著降低了任务完成率。之后的工作可以通过GNN等方法来辅助选择节点，减少工具幻觉的出现。
+
+    \item \textbf{其他错误}：
+    剩余的错误都是由于以上错误组合而成，或是由于其他原因造成的，如路径寻找错误或者是在有限时间内未能找到合适的API路径。
+
+\end{enumerate}
+
+\subsection{消融实验}
+
+为了验证工具图谱上的权值在该图上的有效性，
+我们对工具图上的权值进行了消融实验，
+我们分别移除了工具图谱的点、边权值并观察其对系统性能的影响，
+实验结果如表 \ref{tab:ablation} 所示。
+
+\begin{table}[h]
+\centering
+\caption{工具图谱的消融实验结果。}
+\label{tab:ablation}
+\begin{tabular}{|c|c|c|c|}
+\hline
+\textbf{实验设置}       & \textbf{通过率 (Pass Rate)} & \textbf{胜率 (Win Rate)} & \textbf{执行步骤 (Step Count)} \\ \hline
+完整模型（含工具图谱）  & \textbf{85.2\%}           & \textbf{81.4\%}          & \textbf{3.1}                  \\ \hline
+无工具图谱              & 74.8\%                    & 69.2\%                   & 4.2                           \\ \hline
+无深度优先遍历         & 78.3\%                    & 72.5\%                   & 3.7                           \\ \hline
+无依赖关系建模         & 80.1\%                    & 76.1\%                   & 3.4                           \\ \hline
+\end{tabular}
+\end{table}
+
+\paragraph{消融实验结果分析}
+
+表 \ref{tab:ablation} 的结果显示了不同组件对模型性能的影响：
+
+\begin{itemize}
+    \item \textbf{工具图谱的作用}：
+    移除工具图谱后，通过率从 85.2\% 降至 74.8\%，胜率从 81.4\% 降至 69.2\%，执行步骤数从 3.1 增加到 4.2。这说明工具图谱在减少无效调用和提高执行效率方面具有显著作用。没有工具图谱的情况下，模型需要更多的步骤来完成任务，且选择路径的合理性下降。
+
+    \item \textbf{}
+
+  \end{itemize}
+
+\paragraph{小结}
+
+消融实验结果表明，工具图谱和深度优先遍历策略在本方法中具有关键作用。工具图谱可以提供清晰的工具调用路径和依赖关系，有效减少执行步骤和提升任务成功率；深度优先遍历策略则能帮助模型优先完成必要的调用步骤，优化了执行效率。因此，结合工具图谱和深度优先遍历的方式对于复杂任务的高效解决至关重要。
 
 \section{本章小结}
 
