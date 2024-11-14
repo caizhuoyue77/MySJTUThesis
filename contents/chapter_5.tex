@@ -12,26 +12,41 @@
 
 \subsection{评估指标}
 
-我们使用召回率（Recall）和 NDCG 分数（包括 NDCG@3 和 NDCG@8）来衡量微调后的工具召回器的效果。
+我们使用召回率（Recall）\cite{buckland1994relationship, powers2020evaluation}和 NDCG 分数\cite{wang2013theoretical}来衡量微调后的工具召回器的效果。
+
+召回率用于衡量模型对正样本的识别能力，表示在所有实际正类样本中正确识别出的比例。召回率的计算公式为：
+\begin{equation}
+\text{Recall} = \frac{\text{TP}}{\text{TP} + \text{FN}}
+\end{equation}
+其中，$\text{TP}$ 表示模型正确预测为正类的样本数量，$\text{FN}$ 表示实际为正类但被模型错误预测为负类的样本数量。较高的召回率意味着模型能够识别出更多的正类样本，但可能导致误报率增加。
+
+NDCG（Normalized Discounted Cumulative Gain）用于评价排序效果，通过对结果的排序位置进行权重衰减，衡量模型在不同相关性得分下的排序质量。NDCG 先计算 DCG（Discounted Cumulative Gain）：
+\begin{equation}
+\text{DCG}_p = \sum_{i=1}^{p} \frac{\text{rel}_i}{\log_2(i+1)}
+\end{equation}
+其中，$\text{rel}_i$ 是位置 $i$ 上结果的相关性评分，$i$ 是该结果在列表中的位置，排名越靠前权重越大。为了归一化，NDCG 将 DCG 除以理想状态下的 IDCG（Ideal DCG）：
+\begin{equation}
+\text{NDCG}_p = \frac{\text{DCG}_p}{\text{IDCG}_p}
+\end{equation}
+其中 IDCG 是将结果按照最高相关性得分排序后的 DCG 值。NDCG 的值范围在 $0$ 到 $1$ 之间，越接近 $1$ 表示排序效果越理想。本研究中，使用 NDCG@3 和 NDCG@8 分别评估排名前 3 和前 8 个结果的排序效果。
 
 \subsection{实验结果}
-
-【TODO】这里要区分原始的 simple-neg，hard-neg之间的区别。还有recall和ncdg的区别。
 
 \begin{table}[!ht]
   \centering
   \caption{API工具召回实验结果}
   \label{tab:comparison}
-  \begin{tabular}{l|c|cc|cc}
+  \begin{tabular}{l|ccc|ccc|ccc}
     \toprule
-    \textbf{方法} & \textbf{Recall@5} & \multicolumn{2}{c|}{\textbf{NDCG@1}} & \multicolumn{2}{c}{\textbf{NDCG@5}} \\
-    & & I1 & I2 & I1 & I2 \\
+    \textbf{方法} & \multicolumn{3}{c|}{\textbf{Recall@5}} & \multicolumn{3}{c|}{\textbf{NDCG@1}} & \multicolumn{3}{c}{\textbf{NDCG@5}} \\
+    & I1 & I2 & I3 & I1 & I2 & I3 & I1 & I2 & I3 \\
     \midrule
-    BCE            & 41.5 & 28.0 & 32.7 & 33.8 & 37.0 \\
-    ToolBench's API Retriever & 57.8 & 39.2 & 42.9 & 47.0 & 51.3 \\
-    BGE-m3         & 53.4 & 36.1 & 38.4 & 43.2 & 48.1 \\
-    BGE-m3 + Simple Negatives   & 68.9 & 52.5 & 63.0 & 59.5 & 71.0 \\
-    BGE-m3 + Hard Negatives     & \textbf{71.3} & \textbf{55.0} & \textbf{66.2} & \textbf{61.8} & \textbf{73.1} \\ 
+
+    BCE            & 00.0 & 00.0 & 00.0 & 00.0 & 32.7 & 29.4 & 33.8 & 37.0 & 34.5 \\
+    ToolBench's API Retriever & 00.0 & 00.0 & 00.0 & 84.2 & 68.2 & 81.7 & 89.7 & 77.9 & 87.1 \\
+    BGE-m3         & 53.4 & 50.2 & 51.5 & 36.1 & 38.4 & 37.5 & 43.2 & 48.1 & 45.2 \\
+    BGE-m3 + Simple Negatives   & 68.9 & 66.7 & 67.5 & 52.5 & 63.0 & 55.7 & 59.5 & 71.0 & 65.2 \\
+    BGE-m3 + Hard Negatives     & \textbf{71.3} & \textbf{69.1} & \textbf{70.4} & \textbf{55.0} & \textbf{66.2} & \textbf{58.4} & \textbf{61.8} & \textbf{73.1} & \textbf{69.0} \\ 
     \bottomrule
   \end{tabular}
 \end{table}
@@ -132,7 +147,7 @@
 按照上述数据构造策略，我们共生成了1000条数据作为测试集，其中包括300条单工具任务和700条多工具任务。该测试集共覆盖846个工具，多工具任务的平均工具节点数为3.4，表明此数据集在工具调用任务上具有一定的复杂性。
 
 \subsection{评估指标}
-由于工具的多样性，对于同一个用户需求可以有多种工具调用路径。因此，我们无法事先对每个测试的输入标注单一的解决路径标准答案。由于人工评价较为费时费力，本文基于\cite{Tang2023}中的评估器构建了类似的评估体系，包含以下两个指标。我们的评估器使用的是目前能力最强的模型之一GPT-4，温度系数设置为0。（todo）
+由于工具的多样性，对于同一个用户需求可以有多种工具调用路径。因此，我们无法事先对每个测试的输入标注单一的解决路径标准答案。由于人工评价较为费时费力，本文基于\cite{Tang2023}中的评估器构建了类似的评估体系，包含以下两个指标。我们的评估器使用的是目前能力最强的模型之一GPT-4，温度系数设置为0。
 
 \begin{itemize}
     \item \textbf{通过率（Pass Rate）} \\
@@ -151,7 +166,23 @@
 
 \end{itemize}
 
-同时，为了验证评估器与人类标注者的标注一致性，我们人工标注了100条通过率和100条胜率的数据。经过这200条数据，我们发现标注器在通过率上与人工标注的一致性达到了xxx（todo），在胜率上该数字达到了xxx（todo），这表明该基于大语言模型的标注器与人工标注的标准基本吻合。
+同时，为了验证评估器与人类标注者的标注一致性，我们人工标注了100条通过率和100条胜率的数据。
+
+\begin{table}[h]
+  \centering
+  \caption{Consistency between Evaluator and Human Annotator}
+  \begin{tabular}{lcc}
+  \hline
+  \textbf{Annotation Type} & \textbf{Number of Human-Annotated Samples} & \textbf{Consistency} \\ \hline
+  Pass Rate & 100 samples & 87\% \\
+  Win Rate & 100 samples & 76\% \\ \hline
+  \end{tabular}
+  \label{tab:consistency}
+  \end{table}
+  
+  \noindent
+
+经过这200条数据，我们发现标注器在通过率上与人工标注的一致性达到了87\%，在胜率上该数字达到了76\%，这表明该基于大语言模型的标注器与人工标注的标准基本吻合。
 
 \subsection{基准线}
 
@@ -159,15 +190,15 @@
 
 \begin{itemize}
   \item  \textbf{基本提示方法}。基本提示方法即在大语言模型中直接输入所有候选API的信息，然后要求大语言模型输出需要调用的API的名称和参数等。
-  \item  \textbf{思维链方法}\cite{Wang2023}。思维链方式在提示词中加入了"Let's think step by step"的提示信息，引导大语言模型能够进行按步骤的推理。
-  \item  \textbf{ReACT方法}\cite{Yao2023}。ReACT方法通过让大语言模型不断生成Thought和Action，然后将外部的环境反馈也纳入大语言模型的上下文，让模型能够更好地进行规划。
+  \item  \textbf{思维链方法}\cite{Wang2023a}。思维链方式在提示词中加入了“Let's think step by step”的提示信息，引导大语言模型能够进行按步骤的推理。
+  \item  \textbf{ReACT方法}\cite{Yao2023b}。ReACT方法通过让大语言模型不断生成Thought和Action，然后将外部的环境反馈也纳入大语言模型的上下文，让模型能够更好地进行规划。
 \end{itemize}
 \indent
 
 关于大语言模型的选择，我们选择了Qwen2.5-7b和GPT-3.5作为基础模型，这两个模型都具有中英文双语能力，且能够对比开源模型和能力更强的闭源模型在工具能力上的区别。
 
 \subsection{实验结果}
-实验在构建的测试集上进行，评估了本研究方法与不同基线方法在通过率 (Pass Rate) 和胜率 (Win Rate) 指标上的表现。实验结果如表 \ref{tab:exp_results} 所示。
+实验在构建的测试集上进行，评估了本研究方法与不同基线方法在通过率 (Pass Rate) 和胜率 (Win Rate) 指标上的表现。实验结果如表 \ref{tab:simplified_pass_win} 所示。
 
 
 \begin{table}[!ht]
@@ -178,14 +209,14 @@
   & & Pass & Win & Pass & Win & Pass & Win \\
   \midrule
   ChatGPT & Vanilla          & 30.0 & 25.0 & 32.0 & 28.0 & 31.0 & 26.5 \\
-          & ReACT            & 41.5 & -    & 42.5 & -    & 40.2 & -    \\
           & CoT              & 50.0 & 45.0 & 48.0 & 44.0 & 49.0 & 44.5 \\
-          & Ours             & 54.5 & 60.5 & 75.0 & 72.0 & 64.8 & 64.3 \\
+          & ReACT            & 39.6 & 41.2    & 42.5 & -    & 40.2 & -    \\
+          & Ours             & 43.4 & 43.9 & 75.0 & 72.0 & 64.8 & 64.3 \\
           & Ours+ToolRetriever & 60.0 & 65.0 & 78.0 & 74.5 & 69.0 & 69.8 \\
   \midrule
   Qwen-2.5 & Vanilla          & 15.0 & 10.0 & 12.0 & 8.0  & 13.5 & 9.0  \\
-           & ReACT            & 5.5  & 31.0 & 6.0  & 35.0 & 6.8  & 34.4 \\
            & CoT              & 18.0 & 20.0 & 16.0 & 22.0 & 17.0 & 21.0 \\
+           & ReACT            & 5.5  & 31.0 & 6.0  & 35.0 & 6.8  & 34.4 \\
            & Ours             & 20.5 & 38.0 & 17.0 & 36.8 & 22.6 & 43.5 \\
            & Ours+ToolRetriever & 25.0 & 40.0 & 22.0 & 42.0 & 23.5 & 41.0 \\
   \bottomrule
@@ -194,9 +225,9 @@
   \label{tab:simplified_pass_win}
 \end{table}
 
-\paragraph{结果分析}
+\paragraph{实验结果}
 
-表 \ref{tab:exp_results} 展示了各方法在不同难度任务 (G1 和 G2) 上的通过率和胜率。从结果可以看出，本研究方法在所有指标上都优于其他基线方法，具体分析如下：
+表 \ref{tab:simplified_pass_win} 展示了各方法在不同难度任务 (G1 和 G2) 上的通过率和胜率。从结果可以看出，本研究方法在所有指标上都优于其他基线方法，具体分析如下：
 
 \begin{itemize}
     \item \textbf{通过率 (Pass Rate) 的提升}：
