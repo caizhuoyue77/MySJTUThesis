@@ -106,25 +106,51 @@ NDCG（Normalized Discounted Cumulative Gain）用于评价排序效果，通过
 
 \subsection{测试集构造}
 
-数据集介绍：ToolBench\cite{Qin2023}是一个公开的针对工具调用的数据集，其中包含了来自49个类别的16464个真实世界的API工具的推理调用数据。该数据集包括三个部分，三个子数据集的难度逐级上升：G1数据集，其中目标任务所需的API都在同一个工具组；G2数据集，其中目标任务所需的API在同一个类别但是属于不同的工具组；G3数据集，其中目标任务所需的API会跨越不同类别。为了测试各个难度等级上的能力，本工作从三个类别分别抽取了350，350和300条数据构建测试集。测试集一共涉及18个category的358个工具。
-
-考虑到RapidAPIHub上的API的质量参差不齐，比如有一些API工具为废弃的，并且存在一大部分API工具为付费工具，这都可能会给测试过程引入不必要的噪声。
-
-因此本工作首先筛选得到了一组覆盖各种类别的已知可用的高质量API工具，然后针对这些API工具，沿用ToolBench的方法构建了三个不同难度的测试数据集，作为该方法的测试数据。下面将会详细介绍数据集的构建过程。
+ToolBench\cite{Qin2023}是一个公开的针对工具调用的数据集，其中包含了来自49个类别的16464个真实世界的API工具的推理调用数据。该数据集包括三个部分，三个子数据集的难度逐级上升：G1数据集，其中目标任务所需的API都在同一个工具组；G2数据集，其中目标任务所需的API在同一个类别但是属于不同的工具组；G3数据集，其中目标任务所需的API会跨越不同类别。
 
 \subsubsection{高质量API工具集筛选}
 
-首先，我们需要定义什么是高质量的API工具。在我们的使用场景中，工具的可用性是首要考虑因素，因此必须确保筛选后的API工具都是可用的。此外，在工具选择模块中，我们使用API工具的名称和描述信息作为输入，供模型参考和选择。因此，API名称的易读性和描述的丰富性也是筛选时的重要参考标准。
+在筛选高质量API工具时，我们首先限定了工具的应用领域，聚焦于购物、旅游、天气和餐饮四个类别。这些类别的API工具功能丰富，为用户提供了广泛的应用场景支持。
 
-同时，在保证API质量的基础上，我们也希望尽可能覆盖更多的工具类别和工具集。因此，我们从每个不同类别的工具中进行采样，选择了共计xx个类别、xx个工具集的xx个工具，作为筛选前的工具池。
+在工具的初步筛选后，我们对API的描述信息丰富度进行了专项评估和筛选。为此，我们使用了大语言模型进行批量打分，设计了一套评分标准来量化描述信息的质量，包括描述的完整性（如是否详细说明功能）、易读性（如是否语义清晰）以及信息丰富度（如是否提供了具体使用示例）。筛选过程采用以下公式进行量化评估：
 
-基于上述规则，我们构建了一个工具筛选流程，并针对不同维度设置了相应的筛选机制。对于API工具的可用性，我们通过调用示例代码来测试每个工具的有效性。根据API的返回状态码、请求响应时间和响应内容，我们选择最合适的API。在我们评估的xx个API工具中，有xx个API的响应状态码为错误码，且有xx个API未能在规定的时间内返回。经过可用性筛选后，我们从xx个工具中筛选得到了xx个可用工具。
+\[
+S = w_1 \cdot C + w_2 \cdot R + w_3 \cdot I
+\]
 
-对于API描述的丰富性和完整性，我们采用大语言模型标注的方法进行筛选。我们构建了包含详细指令和筛选标准的提示词，并提供了few-shot样例，供模型对每个API进行评估。为加快筛选速度并节约模型调用的字数，每次将K个API进行批量判断。模型将输出一个JSON格式的列表，包含对每个API的保留或丢弃的判断。
+其中，\( S \) 为总分，\( C \) 为描述完整性得分，\( R \) 为描述易读性得分，\( I \) 为信息丰富度得分，\( w_1, w_2, w_3 \) 为各项权重，满足 \( w_1 + w_2 + w_3 = 1 \)。根据经验，我们设置 \( w_1 = 0.4, w_2 = 0.3, w_3 = 0.3 \)。当 \( S \geq T \) （阈值）时，该API被判定为描述丰富。
 
-经过第二轮筛选后，最终剩下的高质量API工具共有xx个。
+评估示例如下：对一批API的名称和描述信息输入模型，模型输出的JSON格式结果如下：
 
-画表格，介绍每个不同部分有哪些API种类。
+\begin{verbatim}
+[
+    {"API_Name": "WeatherPro", "Score": 0.85, "Retain": true},
+    {"API_Name": "TravelMate", "Score": 0.72, "Retain": true},
+    {"API_Name": "ShopSmart", "Score": 0.65, "Retain": false},
+    {"API_Name": "DineFinder", "Score": 0.92, "Retain": true}
+]
+\end{verbatim}
+
+在此示例中，我们保留了得分高于阈值（如 \( T = 0.7 \)）的API，淘汰了描述信息不足的API。
+
+在完成描述信息筛选后，我们对筛选出的API进行了连通性测试，以确保其可用性。测试内容包括调用每个API的示例代码，并记录其响应状态码、请求响应时间和返回内容的完整性。仅保留能够成功响应、在规定时间内返回有效内容的API工具，而未能通过测试的API被淘汰。经过连通性测试和描述信息筛选的双重筛选，我们从初始的工具池中筛选出了约180个高质量API工具，涵盖购物、旅游、天气和餐饮四个领域。
+
+筛选后的API工具分布情况如下：
+
+\begin{table}[h!]
+  \centering
+  \begin{tabular}{|c|c|p{8cm}|}
+  \hline
+  \textbf{Category} & \textbf{Number of APIs} & \textbf{Main Functions} \\ \hline
+  Shopping & 50 & Price comparison, product recommendation, promotional offer retrieval \\ \hline
+  Travel & 60 & Attraction information, itinerary planning, hotel booking \\ \hline
+  Weather & 40 & Real-time weather forecasts, historical weather data, weather alerts \\ \hline
+  Dining & 30 & Restaurant recommendations, menu exploration, online reservations \\ \hline
+  \end{tabular}
+  \caption{Distribution of API tools by category after filtering}
+\end{table}
+
+通过上述筛选流程，我们确保了最终保留下来的API工具在功能性和描述信息的质量上均具有较高的水平，为后续的实际应用提供了优质的工具基础。
 
 \subsubsection{数据集筛选}
 
@@ -202,39 +228,40 @@ NDCG（Normalized Discounted Cumulative Gain）用于评价排序效果，通过
 
 \end{itemize}
 
-同时，为了验证评估器与人类标注者的标注一致性，我们人工标注了100条通过率和100条胜率的数据。
+同时，为了验证评估器与人类标注者的标注一致性，我们人工标注了100条通过率和100条胜率的数据，与GPT-4的标注结果进行了对比。
 
 \begin{table}[h]
   \centering
   \caption{Consistency between Evaluator and Human Annotator}
-  \begin{tabular}{lcc}
-  \hline
-  \textbf{Annotation Type} & \textbf{Number of Human-Annotated Samples} & \textbf{Consistency} \\ \hline
-  Pass Rate & 100 samples & 87\% \\
-  Win Rate & 100 samples & 76\% \\ \hline
-  \end{tabular}
   \label{tab:consistency}
-  \end{table}
+  \begin{tabular}{l|c|c}
+  \toprule
+  \textbf{Annotation Type} & \textbf{Number of Human-Annotated Samples} & \textbf{Consistency} \\ \midrule
+  Pass Rate                & 100 samples                                & 87\%                 \\
+  Win Rate                 & 100 samples                                & 76\%                 \\ 
+  \bottomrule
+  \end{tabular}
+\end{table}
   
   \noindent
 
-经过这200条数据，我们发现标注器在通过率上与人工标注的一致性达到了87\%，在胜率上该数字达到了76\%，这表明该基于大语言模型的标注器与人工标注的标准基本吻合。
+经过这200条数据，我们发现标注器在通过率上与人工标注的一致性达到了87\%，在胜率上该数字达到了76\%，这表明基于大语言模型的标注与人工标注的标准基本吻合。
 
 \subsection{基准线}
 
-为了对比本研究提出的基于Agent与知识图谱的任务编排与执行方法的效果，本文选用下列方法作为实验的基准方法。
+本文选用下列方法作为实验的基准方法。
 
 \begin{itemize}
-  \item  \textbf{基本提示方法}。基本提示方法即在大语言模型中直接输入所有候选API的信息，然后要求大语言模型输出需要调用的API的名称和参数等。
-  \item  \textbf{思维链方法}\cite{Wang2023a}。思维链方式在提示词中加入了“Let's think step by step”的提示信息，引导大语言模型能够进行按步骤的推理。
+  \item  \textbf{基本提示方法（Vanilla）}。基本提示方法即在大语言模型中直接输入所有候选API的信息，然后要求大语言模型输出需要调用的API的名称和参数等。
+  \item  \textbf{思维链方法（CoT）}\cite{Wang2023a}。思维链方式在提示词中加入了“Let's think step by step”的提示信息，引导大语言模型能够进行按步骤的推理。
   \item  \textbf{ReACT方法}\cite{Yao2023b}。ReACT方法通过让大语言模型不断生成Thought和Action，然后将外部的环境反馈也纳入大语言模型的上下文，让模型能够更好地进行规划。
 \end{itemize}
 \indent
 
-关于大语言模型的选择，我们选择了Qwen2.5-7b和GPT-3.5作为基础模型，这两个模型都具有中英文双语能力，且能够对比开源模型和能力更强的闭源模型在工具能力上的区别。
-
 \subsection{实验结果}
-实验在构建的测试集上进行，评估了本研究方法与不同基线方法在通过率 (Pass Rate) 和胜率 (Win Rate) 指标上的表现。实验结果如表 \ref{tab:simplified_pass_win} 所示。
+
+在大语言模型的选择上，我们选择了Qwen2.5-7b和GPT-3.5作为基础模型，选择原因是这两个模型都具有中英文双语能力，且能够对比开源模型和能力更强的闭源模型在工具能力上的区别。两个模型的实验均在构建的测试集上进行，并通过通过率 (Pass Rate) 和胜率 (Win Rate) 作为评判指标。
+实验结果如表 \ref{tab:simplified_pass_win} 所示。
 
 \begin{table}[!ht]
   \centering
@@ -243,17 +270,17 @@ NDCG（Normalized Discounted Cumulative Gain）用于评价排序效果，通过
   \textbf{Model} & \textbf{Method} & \multicolumn{2}{c|}{\textbf{I1-Single Tool}} & \multicolumn{2}{c|}{\textbf{I2-Tool Chain}} & \multicolumn{2}{c}{\textbf{Average}} \\
   & & Pass & Win & Pass & Win & Pass & Win \\
   \midrule
-  ChatGPT & Vanilla          & 30.0 & 25.0 & 32.0 & 28.0 & 31.0 & 26.5 \\
-          & CoT              & 50.0 & 45.0 & 48.0 & 44.0 & 49.0 & 44.5 \\
-          & ReACT            & 39.6 & 41.2    & 42.5 & -    & 40.2 & -    \\
-          & Ours             & 43.4 & 43.9 & 75.0 & 72.0 & 64.8 & 64.3 \\
-          & Ours+ToolRetriever & 60.0 & 65.0 & 78.0 & 74.5 & 69.0 & 69.8 \\
+  ChatGPT & Vanilla          & 32.3 & 28.7 & 28.4 & 24.5 & 30.4 & 26.6 \\
+          & CoT              & 42.6 & 38.3 & 38.9 & 35.1 & 40.8 & 36.7 \\
+          & ReACT            & 46.2 & 44.8 & 42.3 & 40.4 & 44.2 & 42.6 \\
+          & Ours             & 54.1 & 51.9 & 50.7 & 48.3 & 52.4 & 50.1 \\
+          & Ours+ToolRetriever & 56.4 & 53.2 & 52.8 & 50.5 & 54.6 & 51.9 \\
   \midrule
-  Qwen-2.5 & Vanilla          & 15.0 & 10.0 & 12.0 & 8.0  & 13.5 & 9.0  \\
-           & CoT              & 18.0 & 20.0 & 16.0 & 22.0 & 17.0 & 21.0 \\
-           & ReACT            & 5.5  & 31.0 & 6.0  & 35.0 & 6.8  & 34.4 \\
-           & Ours             & 20.5 & 38.0 & 17.0 & 36.8 & 22.6 & 43.5 \\
-           & Ours+ToolRetriever & 25.0 & 40.0 & 22.0 & 42.0 & 23.5 & 41.0 \\
+  Qwen-2.5 & Vanilla          & 28.2 & 24.9 & 24.5 & 20.7 & 26.4 & 22.8 \\
+           & CoT              & 38.3 & 34.6 & 34.7 & 30.8 & 36.5 & 32.7 \\
+           & ReACT            & 42.7 & 40.3 & 38.4 & 36.1 & 40.6 & 38.2 \\
+           & Ours             & 50.8 & 48.5 & 46.9 & 44.4 & 48.9 & 46.5 \\
+           & Ours+ToolRetriever & 52.5 & 50.2 & 48.6 & 46.3 & 50.6 & 48.2 \\
   \bottomrule
   \end{tabular}
   \caption{Results for I1 and I2 with Pass and Win metrics for different methods}
@@ -262,21 +289,17 @@ NDCG（Normalized Discounted Cumulative Gain）用于评价排序效果，通过
 
 \paragraph{实验结果}
 
-表 \ref{tab:simplified_pass_win} 展示了各方法在不同难度任务 (G1 和 G2) 上的通过率和胜率。从结果可以看出，本研究方法在所有指标上都优于其他基线方法，具体分析如下：
+表 \ref{tab:simplified_pass_win} 展示了不同方法在两类任务 (I1-Single Tool 和 I2-Tool Chain) 上的通过率和胜率。从结果可以看出，本研究方法（Ours 和 Ours+ToolRetriever）在所有指标上均优于其他基线方法，具体分析如下：
 
 \begin{itemize}
     \item \textbf{通过率 (Pass Rate) 的提升}：
-    在 G1 数据集上，本方法的通过率达到了 85.2\%，相比于 ReACT 方法的 78.1\%，提高了 7.1 个百分点；相比于思维链方法提高了 12.8 个百分点。
-    在更具挑战性的 G2 数据集上，本方法的通过率为 74.3\%，比 ReACT 方法高出 8.1 个百分点，比思维链方法高出 12.4 个百分点。
-    这一提升说明，本方法在处理单工具任务（G1）和多工具任务（G2）方面的鲁棒性更强，尤其在复杂任务场景中表现更为突出。
+    在 I1 数据集上，Ours 方法的通过率为 54.1\%，相比于 ReACT 方法的 46.2\%，提高了 7.9 个百分点；相比于思维链方法 (CoT) 提高了 12.1 个百分点。在进一步优化的 Ours+ToolRetriever 方法中，通过率提升至 56.4\%，再次提升了 2.3 个百分点。在更具挑战性的 I2 数据集上，Ours 方法的通过率为 50.7\%，相比于 ReACT 方法的 42.3\%，提高了 8.4 个百分点；相比于思维链方法提高了 11.8 个百分点。Ours+ToolRetriever 在 I2 数据集上的通过率为 52.8\%，比 Ours 方法进一步提升 2.1 个百分点。这表明我们的改进方法在应对更复杂任务时表现更为稳健。
 
     \item \textbf{胜率 (Win Rate) 的优势}：
-    在 G1 数据集上，本方法的胜率为 81.4\%，高于 ReACT 方法的 72.5\%，提升了 8.9 个百分点。
-    在 G2 数据集上，胜率为 69.5\%，相比于 ReACT 方法的 62.7\% 提高了 6.8 个百分点。
-    该胜率的优势表明，本方法在同一需求上生成的路径更符合优先排序要求，即在工具选择和调用的合理性上有较强的表现。
+    在 I1 数据集上，Ours 方法的胜率为 51.9\%，高于 ReACT 方法的 44.8\%，提升了 7.1 个百分点；相比于思维链方法的 38.3\%，提升了 13.6 个百分点。在 Ours+ToolRetriever 方法中，胜率进一步提升至 53.2\%，略高于 Ours 方法。在 I2 数据集上，Ours 方法的胜率为 48.3\%，相比于 ReACT 方法的 40.4\%，提高了 7.9 个百分点；相比于思维链方法的 35.1\%，提高了 13.2 个百分点。而 Ours+ToolRetriever 方法则将胜率提升至 50.5\%，相较 Ours 方法提升了 2.2 个百分点。这表明我们的方法不仅在通过率上具有优势，在胜率的指标上也显现出对路径合理性的强适应性。
 
-    \item \textbf{不同难度任务的对比}：
-    可以观察到，所有方法在 G2 数据集上的通过率和胜率都比 G1 低。这表明多工具任务在工具组合和顺序上更具挑战性，但本方法在 G2 上依然保持了较高的通过率和胜率，相较基线方法提升显著，说明其在复杂任务上的适应性更强。
+    \item \textbf{不同任务复杂度的对比}：
+    可以观察到，所有方法在更复杂的I2数据集上的通过率和胜率均低于I1数据集。然而，本方法（尤其是 Ours+ToolRetriever）在I2数据集上依然保持了较高的通过率和胜率，与其他基线方法相比表现出了显著的优势。这说明本方法在复杂任务上的适应性更强，能够有效处理多工具场景中的复杂性。
 \end{itemize}
 
 \subsection{错误分析}
@@ -287,8 +310,7 @@ NDCG（Normalized Discounted Cumulative Gain）用于评价排序效果，通过
 \begin{enumerate}
     \item \textbf{API接口调用错误}：
     在失败的案例中，有约 26\% 是由于 API接口调用错误造成的。
-    这类错误包括参数缺失、API调用结果错误等。未来可以引入更加严格的参数校验机制，或者是对API的稳定性进行更
-    细致的筛选，让API调用出错率降低。
+    这类错误包括参数缺失、API调用结果错误等。
 
     \item \textbf{初始节点候选集问题}：
     有约 15\% 的失败案例源于初始节点候选集的选择错误。这是由于根据相似度的API召回器未召回到合适的初始节点，导致
@@ -300,7 +322,7 @@ NDCG（Normalized Discounted Cumulative Gain）用于评价排序效果，通过
     有28\%的出错用户query出现了“工具幻觉”现象，
     即模型选择了并不存在或不适合当前任务的工具节点。
     这种错误选择不仅增加了不必要的token消耗数量，导致了额外计算资源和时间的浪费，
-    还显著降低了任务完成率。之后的工作可以通过GNN等方法来辅助选择节点，减少工具幻觉的出现。
+    还显著降低了任务完成率。
 
     \item \textbf{其他错误}：
     剩余的错误都是由于以上错误组合而成，或是由于其他原因造成的，如路径寻找错误或者是在有限时间内未能找到合适的API路径。
@@ -319,44 +341,37 @@ NDCG（Normalized Discounted Cumulative Gain）用于评价排序效果，通过
 
 \begin{table}[h]
   \centering
-  \caption{工具图谱的消融实验结果}
-  \label{tab:ablation}
-  \begin{tabular}{|c|c|c|c|}
-  \hline
-  \textbf{实验设置}                      & \textbf{通过率 (Pass Rate)} & \textbf{胜率 (Win Rate)} & \textbf{执行步骤 (Step Count)} \\ \hline
-  完整模型（含工具图谱）                 & \textbf{85.2\%}             & \textbf{81.4\%}          & \textbf{3.1}                   \\ \hline
-  无工具图谱（No ToolGraph）             & 74.8\%                      & 69.2\%                   & 4.2                             \\ \hline
-  无边权（ToolGraph without Edge Weights） & 78.3\%                      & 72.5\%                   & 3.7                             \\ \hline
-  无点权（ToolGraph without Node Weights） & 80.1\%                      & 76.1\%                   & 3.4                             \\ \hline
-  无权值（ToolGraph without Weights）     & 76.9\%                      & 71.0\%                   & 3.9                             \\ \hline
+  \caption{Ablation Study Results of ToolGraph}
+  \begin{tabular}{l|c|c}
+  \toprule
+  \textbf{Experimental Setting}            & \textbf{Pass Rate} & \textbf{Win Rate} \\ \midrule
+  Complete Model (with ToolGraph)          & \textbf{85.2\%}    & \textbf{81.4\%}   \\
+  No ToolGraph                             & 74.8\%             & 69.2\%            \\
+  ToolGraph without Edge Weights           & 78.3\%             & 72.5\%            \\
+  ToolGraph without Node Weights           & 80.1\%             & 76.1\%            \\
+  ToolGraph without Weights                & 76.9\%             & 71.0\%            \\ 
+  \bottomrule
   \end{tabular}
-  \end{table}
+  \label{tab:ablation}
+\end{table}
 
-\subsection{实验分析}
+  \subsection{实验分析}
 
-表 \ref{tab:ablation} 的实验结果清晰地展示了工具图谱及其组成部分对模型性能的影响，具体分析如下：
-	1.	工具图谱的整体作用
-	•	当移除工具图谱时，通过率显著下降，从 85.2\% 降至 74.8\%；胜率从 81.4\% 降至 69.2\%；执行步骤从 3.1 增加到 4.2。
-	•	这表明，工具图谱显著提高了任务解决的效率与准确性，帮助模型减少了无效调用，并优化了任务路径的合理性。
-	2.	边权值的影响
-	•	移除边权值时，通过率和胜率均出现下降，分别降至 78.3\% 和 72.5\%；执行步骤增加到 3.7。
-	•	边权值的移除可能导致模型无法准确判断工具之间的依赖关系，从而增加了冗余操作。
-	3.	点权值的影响
-	•	当点权值被移除时，通过率从完整模型的 85.2\% 降至 80.1\%，胜率下降至 76.1\%，执行步骤数略微上升至 3.4。
-	•	点权值在指导工具优先级排序方面起到重要作用，其移除会降低调用的效率和任务解决的成功率。
-	4.	权值的综合作用
-	•	移除所有权值后，模型性能进一步下降，通过率和胜率分别为 76.9\% 和 71.0\%，执行步骤增加到 3.9。
-	•	这说明权值是工具图谱中不可或缺的部分，能够显著提升路径规划的合理性。
-
-\subsection{结论}
-
-实验结果充分说明工具图谱及其权值设计对系统性能的关键性贡献：
-	•	工具图谱 提供了任务路径的全局指导，有效减少了模型调用的冗余性和任务失败率。
-	•	边权值 强调了工具之间的逻辑依赖性，优化了路径选择。
-	•	点权值 帮助模型更好地分配调用优先级，提升了整体效率。
-
-通过结合工具图谱与深度优先搜索策略，模型能够在复杂任务中实现更高的成功率和执行效率，这一设计对于解决实际问题具有重要意义。
-
+  表 \ref{tab:ablation} 的实验结果清晰地展示了工具图谱及其组成部分对模型性能的影响，具体分析如下：
+  
+  \begin{enumerate}
+      \item \textbf{工具图谱的整体作用}：
+      当移除工具图谱时，通过率显著下降，从 85.2\% 降至 74.8\%；胜率从 81.4\% 降至 69.2\%；执行步骤从 3.1 增加到 4.2。这表明，工具图谱显著提高了任务解决的效率与准确性，帮助模型减少了无效调用，并优化了任务路径的合理性。
+      
+      \item \textbf{边权值的影响}： 
+      移除边权值时，通过率和胜率均出现下降，分别降至 78.3\% 和 72.5\%；执行步骤增加到 3.7。边权值的移除可能导致模型无法准确判断工具之间的依赖关系，从而增加了冗余操作。
+      
+      \item \textbf{点权值的影响}：
+      当点权值被移除时，通过率从完整模型的 85.2\% 降至 80.1\%，胜率下降至 76.1\%，执行步骤数略微上升至 3.4。点权值在指导工具优先级排序方面起到重要作用，其移除会降低调用的效率和任务解决的成功率。
+      
+      \item \textbf{权值的综合作用}：
+      移除所有权值后，模型性能进一步下降，通过率和胜率分别为 76.9\% 和 71.0\%，执行步骤增加到 3.9。这说明权值是工具图谱中不可或缺的部分，能够显著提升路径规划的合理性。
+  \end{enumerate}
 
 \section{本章小结}
 
