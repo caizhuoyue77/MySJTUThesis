@@ -47,7 +47,7 @@ Toolformer通过工具调用来辅助模型预测后续词元，基于此原理�
 当工具数量过多时，通常会使用检索器先搜索得到与任务相关的工具。检索方式包括基于关键词的检索和基于语义的检索两种。
 
 \begin{enumerate}
-    \item \textbf{基于关键词的检索}：如TF-IDF\cite{Jones1972}和BM25\cite{Robertson2009}。这些方法通过精确匹配实现用户需求和文档之间的对齐和查询。
+    \item \textbf{基于关键词的检索}：通过精确匹配实现用户需求和文档之间的对齐和查询，如TF-IDF\cite{Jones1972}和BM25\cite{Robertson2009}。
     \item \textbf{基于语义的检索}：利用神经网络来学习文本之间的语义关系，然后使用余弦相似度等算法计算语义相似度，如ToolLLM\cite{Qin2023}。
 \end{enumerate}
 

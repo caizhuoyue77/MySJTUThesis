@@ -64,29 +64,6 @@
 
 总的来说，基于大语言模型的任务解耦模块通过解耦复杂任务、改写用户需求，并动态调整任务规划，使得该系统在执行复杂任务时更加灵活、精准且高效。
 
-% 设置颜色
-% \definecolor{bgcolor}{RGB}{240,240,240} % 背景颜色
-% \definecolor{titlecolor}{RGB}{20,20,20} % 标题背景颜色
-
-% \begin{center}
-% % 使用 tcolorbox 创建背景
-% \begin{tcolorbox}[colback=bgcolor, colframe=black, width=0.8\textwidth, boxrule=0.5mm, 
-% coltitle=white, colbacktitle=titlecolor, title=An Example for Response Generation with GPT-4]
-
-% % 使文字居中
-
-% \textbf{Instruction Prompt:} You are currently in the response generation stage. You are given the output of selected tools that can be potentially used to solve the sub-task. Your goal is to generate a response to the user question based on the results from tools and your internal knowledge.
-
-% \textbf{User Question:} I would like to know the value of 5 ounces of gold plus 1 million AMZN stocks in CNY.
-
-% \textbf{Return from Tool Calling:} The stock price of AMZN is 130 USD, XAU USD is 1919.7605807522993, and the exchange rate between USD and YNC is 7.24.
-
-% \textbf{Output:} \textcolor{red}{Total value in CNY: Total value = Value of gold in CNY + Value of stocks in CNY = 69,495.87 + 941,200,000 = 941,269,495.87 CNY. Therefore, the combined value of 5 ounces of gold and 1 million Amazon stocks in Chinese Yuan is approximately 941,269,495.87 CNY.}
-
-% \end{tcolorbox}
-
-% \end{center}
-
 
 \subsection{任务编排模块}
 
@@ -143,6 +120,30 @@
 如果模型回溯到了初始节点，并且需要继续回溯，
 我们可以理解为基于当前的工具选择，
 该任务不可行，即放弃任务执行。
+
+
+% 设置颜色
+\definecolor{bgcolor}{RGB}{240,240,240} % 背景颜色
+\definecolor{titlecolor}{RGB}{20,20,20} % 标题背景颜色
+
+\begin{center}
+% 使用 tcolorbox 创建背景
+\begin{tcolorbox}[colback=bgcolor, colframe=black, width=0.8\textwidth, boxrule=0.5mm, 
+coltitle=white, colbacktitle=titlecolor, title=An Example for Response Generation with GPT-4]
+
+% 使文字居中
+
+\textbf{Instruction Prompt:} You are currently in the response generation stage. You are given the output of selected tools that can be potentially used to solve the sub-task. Your goal is to generate a response to the user question based on the results from tools and your internal knowledge.
+
+\textbf{User Question:} I would like to know the value of 5 ounces of gold plus 1 million AMZN stocks in CNY.
+
+\textbf{Return from Tool Calling:} The stock price of AMZN is 130 USD, XAU USD is 1919.7605807522993, and the exchange rate between USD and YNC is 7.24.
+
+\textbf{Output:} \textcolor{red}{Total value in CNY: Total value = Value of gold in CNY + Value of stocks in CNY = 69,495.87 + 941,200,000 = 941,269,495.87 CNY. Therefore, the combined value of 5 ounces of gold and 1 million Amazon stocks in Chinese Yuan is approximately 941,269,495.87 CNY.}
+
+\end{tcolorbox}
+
+\end{center}
 
 \subsubsection{初始节点召回器}
 
@@ -327,8 +328,72 @@
 
 【主要就写对所有API的调用结果进行总结，重要的是如何进行错误处理和拒答】
 
-【看看其他论文咋写的】
+工具总结模块的功能是依赖大语言模型对所有API的调用结果进行总结，以生成符合用户需求的答案。
 
+这部分类似传统的检索增强生成，通过调用API工具得到的结果就类似检索到的信息，对用户需求进行回答就类似
+检索生成的生成部分。
+这一部分最重要的是：
+1.减少幻觉现象
+2.确保回答的稳定性（每次回答都有类似的答案）
+3.确保回答的相关性（减少噪声）
+
+为了完成上述目标，我们通过提示词工程进行设计了一个工具总结模块的提示词模板，通过提供一个供模型思考和回答的模板，
+让模型能够更加稳定、有逻辑地生成符合用户需求的答案。
+
+% Set Colors
+\definecolor{bgcolor}{RGB}{240,240,240} % Background color
+\definecolor{titlecolor}{RGB}{20,20,20} % Title background color
+
+\begin{center}
+% Create background with tcolorbox
+\begin{tcolorbox}[colback=bgcolor, colframe=black, width=0.8\textwidth, boxrule=0.5mm, 
+coltitle=white, colbacktitle=titlecolor, title=An Example for Response Generation with GPT-4]
+
+% Centered content
+
+\textbf{Instruction Prompt:} Generate a response to the user's question based on the results from the tools and your internal knowledge.
+
+\textbf{Task:} What's the most popular travel destination in Europe? And what's the weather like there?
+
+\textbf{Return from Tool Calling:} 
+\{%
+    "popular\_travel\_destination": \{%
+        "destination": "Paris, France",%
+        "popularity\_score": 9.8%
+    \},%
+    "global\_weather\_search": \{%
+        "location": "Paris, France",%
+        "weather": \{%
+            "temperature": "15°C",%
+            "condition": "Partly Cloudy",%
+            "humidity": "60\%",%
+        \},%
+        "timestamp": "2024-11-17T14:00:00Z"%
+    \}%
+\}
+
+\textbf{Instructions:}
+1. If the tool's output is incorrect, or if the information from the tools and your internal knowledge is insufficient to answer, do not respond. Avoid fabricating any untrue information.
+
+2. Think step by step before answering. Plan the key points to address before formulating your response.
+
+3. Only answer the user's request. Do not include any additional or irrelevant information.
+
+4. Use the same language as the Task (in this case, English).
+
+5. Provide the output in JSON format.
+
+\textbf{Output Format:}  
+\{%
+    "Steps": [%
+        "Find the most popular travel destination in Europe.",%
+        "Describe the current weather at that destination."%
+    ],%
+    "Result": "The most popular travel destination in Europe is Paris, France. The weather in Paris is partly cloudy with a temperature of 15°C, a humidity level of 60\%."%
+\}
+
+\end{tcolorbox}
+\end{center}
 
 \section{本章小结}
 \label{sec:summary_chap4}
