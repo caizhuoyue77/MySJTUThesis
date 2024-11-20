@@ -36,7 +36,7 @@
 
 \begin{enumerate}
   \item \textbf{任务解耦模块}：任务解耦模块负责将复杂、模糊的用户需求解耦为多个涉及不同大类API的子任务，能够充分提高系统处理复杂任务的能力。
-  \item \textbf{任务编排模块}：该部分包括基于深度优先遍历的动态工具搜索算法、自我反思机制和长短期记忆模块。
+  \item \textbf{任务编排模块}：该部分包括基于深度优先遍历的动态工具搜索算法、自我反思机制和记忆模块。
   本质上来说，该算法就是在图上进行深度优先遍历，我们将图上的节点的权值、节点的邻居点的边权等信息，以及节点工具的描述信息等全部提供给大语言模型，让模型在图上动态选择节点。
   在工具路径选择的过程中，若遇到了路径信息，我们将会进调用“自我反思机制”，即对路径上遇到的错误进行分析并基于此错误分析内容重新
   进行路径选择。模型可以选择回溯到某个中间过程，或者是从头开始寻路。
@@ -245,9 +245,9 @@ coltitle=white, colbacktitle=titlecolor, title=An Example for Response Generatio
 综上所述，这两种反思策略——从中间步骤继续优化和从头开始的寻路——的结合使用，能够在处理用户需求未满足的情况下，提供更高的灵活性与效率。
 通过不断的反思与优化，系统将逐步提升其在动态环境中的适应能力，确保用户体验的持续改进。
 
-\subsubsection{工具调用路径长短期记忆框架}
+\subsubsection{工具调用路径记忆框架}
 
-本小节提出了关于增强模型规划和推理准确性的长短期记忆框架。该框架主要分为短期记忆和长期记忆两个部分。
+本小节提出了关于增强模型规划和推理准确性的记忆框架。该框架主要分为短期记忆和长期记忆两个部分。
 短期记忆部分指的是当模型在图上动态推理时存储的每个步骤的记录，
 主要聚焦于以什么数据格式来存储推理步骤，
 以及记录哪些有用的记忆信息：在图上前进、回溯还有大模型的思考过程等。
@@ -307,7 +307,7 @@ coltitle=white, colbacktitle=titlecolor, title=An Example for Response Generatio
   \vspace{1em}
   \centering
   \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
-  \includegraphics[height=4cm]{../assets/ch4-响应压缩.pdf}
+  \includegraphics[height=7cm]{../assets/ch4-工具调用模块.pdf}
   \bicaption{响应压缩模块}{Compression of API responses}
   \label{fig:ch4-compression}
 \end{figure}
@@ -329,6 +329,18 @@ coltitle=white, colbacktitle=titlecolor, title=An Example for Response Generatio
 【主要就写对所有API的调用结果进行总结，重要的是如何进行错误处理和拒答】
 
 工具总结模块的功能是依赖大语言模型对所有API的调用结果进行总结，以生成符合用户需求的答案。
+
+\ref{fig:ch4-summary}
+
+\begin{figure}[!htp]
+  \vspace{1em}
+  \centering
+  \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
+  \includegraphics[height=5cm]{../assets/ch4-工具总结模块.pdf}
+  \bicaption{整体框架}{Overview of the Dynamic Tool Selection Framework}
+  \label{fig:ch4-summary}
+\end{figure}
+
 
 这部分类似传统的检索增强生成，通过调用API工具得到的结果就类似检索到的信息，对用户需求进行回答就类似
 检索生成的生成部分。
