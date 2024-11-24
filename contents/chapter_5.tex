@@ -2,7 +2,7 @@
 
 \section{实验环境}
 
-本实验系统的配置由环境配置和系统库配置两部分组成。环境配置方面，实验使用的中央处理器为 Intel Xeon Gold 5318Y，具备 48 核心、96 线程，主频为 2.10 GHz（最高 3.40 GHz），内存为 251 GB；图形处理器型号为 NVIDIA GeForce RTX 3090，共计 8 张显卡，每张显存为 24 GB。系统库配置方面，文档存储使用 qdrant-client 1.11.3，图数据库采用 5.26.0 版本的 Neo4j，外部知识库 FlagEmbedding 使用 1.2.11 版本，深度学习框架 torch 为 2.4.1 版本，并结合 FastAPI 0.111.0 和 Streamlit 1.34.0 进行前端交互，整体运行环境基于 Python 3.10。
+本实验系统的配置由环境配置和系统库配置两部分组成。环境配置方面，实验使用的中央处理器为 Intel Xeon Gold 5318Y，具备 48 核心、96 线程，主频为 2.10 GHz（最高 3.40 GHz），内存为 251 GB；图形处理器型号为 NVIDIA GeForce RTX 3090，共计 8 张显卡，每张显存为 24 GB。系统库配置方面，向量数据存储使用 qdrant-client 1.11.3，图数据库采用 5.26.0 版本的 Neo4j，深度学习框架 torch 为 2.4.1 版本，并结合 FastAPI 0.111.0 和 Streamlit 1.34.0 进行前端交互，整体运行环境基于 Python 3.10。
 
 % 第一个表格
 \begin{table}[h]
@@ -148,62 +148,6 @@ NDCG（Normalized Discounted Cumulative Gain）用于评价排序效果，通过
 综上所述，实验结果表明，我们的方法在 API 工具召回任务中取得了显著的性能提升。特别是在更高复杂度任务的用户需求中表现突出，进一步验证了基于对比学习微调的 BGE-m3 模型在本文的工具召回场景的适用性。
 
 \section{基于工具图谱与深度优先遍历的API编排与调用方法实验}
-
-\subsection{测试集构造}
-
-ToolBench\cite{Qin2023}是一个公开的针对工具调用的数据集，其中包含了来自49个类别的16464个真实世界的API工具的推理调用数据。该数据集包括三个部分，三个子数据集的难度逐级上升：G1数据集，其中目标任务所需的API都在同一个工具组；G2数据集，其中目标任务所需的API在同一个类别但是属于不同的工具组；G3数据集，其中目标任务所需的API会跨越不同类别。
-
-在筛选高质量API工具时，我们首先限定了工具的应用领域，聚焦于购物、旅游、天气和餐饮四个类别。这些类别的API工具功能丰富，为用户提供了广泛的应用场景支持。
-
-在工具的初步筛选后，我们对API的描述信息丰富度进行了专项评估和筛选。
-为此，我们使用了大语言模型进行批量打分，设计了一套评分标准来量化描述信息的质量，
-包括描述的完整性（如是否详细说明功能）、易读性（如是否语义清晰）以及信息丰富度（如是否提供了具体使用示例）。
-筛选过程采用以下公式进行量化评估：
-
-\[
-S = w_1 \cdot C + w_2 \cdot R + w_3 \cdot I
-\]
-
-其中，\( S \) 为总分，\( C \) 为描述完整性得分，\( R \) 为描述易读性得分，\( I \) 为信息丰富度得分，\( w_1, w_2, w_3 \) 为各项权重，满足 \( w_1 + w_2 + w_3 = 1 \)。根据经验，我们设置 \( w_1 = 0.4, w_2 = 0.3, w_3 = 0.3 \)。当 \( S \geq T \) （阈值）时，该API被判定为描述丰富。
-
-评估示例如下：对一批API的名称和描述信息输入模型，模型输出的JSON格式结果如下：
-
-\begin{verbatim}
-[
-    {"API_Name": "WeatherPro", "Score": 0.85, "Retain": true},
-    {"API_Name": "TravelMate", "Score": 0.72, "Retain": true},
-    {"API_Name": "ShopSmart", "Score": 0.65, "Retain": false},
-    {"API_Name": "DineFinder", "Score": 0.92, "Retain": true}
-]
-\end{verbatim}
-
-在此示例中，我们保留了得分高于阈值（如 \( T = 0.7 \)）的API，淘汰了描述信息不足的API。
-
-在完成描述信息筛选后，我们对筛选出的API进行了连通性测试，以确保其可用性。
-测试内容包括调用每个API的示例代码，并记录其响应状态码、请求响应时间和返回内容的完整性。
-仅保留能够成功响应、在规定时间内返回有效内容的API工具，而未能通过测试的API被淘汰。
-经过连通性测试和描述信息筛选的双重筛选，我们从初始的工具池中筛选出了约180个高质量API工具，
-涵盖购物、旅游、天气和餐饮四个领域。
-
-筛选后的API工具分布情况如下：
-
-\begin{table}[h]
-  \centering
-  \caption{Distribution of API tools by category after filtering}
-  \label{tab:api_distribution}
-  \begin{tabular}{l|c|c}
-  \toprule
-  \textbf{Category} & \textbf{Number of Tools} & \textbf{Number of APIs} \\ \midrule
-  Shopping & 20 & 45 \\ \hline
-  Travel   & 25 & 54 \\ \hline
-  Weather  & 18 & 52 \\ \hline
-  Dining   & 12 & 29 \\ 
-  \bottomrule
-  \end{tabular}
-\end{table}
-
-通过上述筛选流程，我们确保了最终保留下来的API工具在功能性和描述信息的质量上均具有较高的水平，
-为后续的实际应用提供了优质的工具基础。
 
 \subsubsection{工具调用数据集构造}
 

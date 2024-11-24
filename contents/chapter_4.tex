@@ -35,7 +35,7 @@
 该方法整体由以下几个部分组成：
 
 \begin{enumerate}
-  \item \textbf{任务解耦模块}：任务解耦模块负责将复杂、模糊的用户需求解耦为多个涉及不同大类API的子任务，能够充分提高系统处理复杂任务的能力。
+  \item \textbf{任务分解模块}：任务分解模块负责将复杂、模糊的用户需求分解为多个涉及不同大类API的子任务，能够充分提高系统处理复杂任务的能力。
   \item \textbf{任务编排模块}：该部分包括基于深度优先遍历的动态工具搜索算法、自我反思机制和记忆模块。
   本质上来说，该算法就是在图上进行深度优先遍历，我们将图上的节点的权值、节点的邻居点的边权等信息，以及节点工具的描述信息等全部提供给大语言模型，让模型在图上动态选择节点。
   在工具路径选择的过程中，若遇到了路径信息，我们将会进调用“自我反思机制”，即对路径上遇到的错误进行分析并基于此错误分析内容重新
@@ -49,21 +49,81 @@
   \item \textbf{任务总结模块}：任务总结模块即对子任务的工具调用链执行结果进行汇总，输出最终结果。
 \end{enumerate}
 
-在流程上，对于每个用户需求，只会执行一次子任务解耦。但是对于每个子任务，都会执行一次动态工具搜索算法，并且会根据搜索到的工具路径执行若干次API工具，因此会多次调用API执行模块。
+在流程上，对于每个用户需求，只会执行一次子任务分解。但是对于每个子任务，都会执行一次动态工具搜索算法，并且会根据搜索到的工具路径执行若干次API工具，因此会多次调用API执行模块。
 最后，我们通过任务总结模块对所有子任务的结果进行汇总，得到最终输出。
 
 \section{具体实现}
 
-\subsection{任务解耦模块}
+\subsection{任务分解模块}
 
-由于用户的需求可能会较为模糊、笼统，或者在同一个需求语句中存在多个潜在的子任务。通过对用户提供的复杂需求进行解耦、改写，并生成适合执行的具体指令，这一过程使得任务变得更加明确和易于解决。
+由于用户的需求可能会较为模糊、笼统，或者在同一个需求语句中存在多个潜在的子任务。通过对用户提供的复杂需求进行分解、改写，并生成适合执行的具体指令，这一过程使得任务变得更加明确和易于解决。
 
-任务解耦模块的输入包括具体用户需求、子任务格式的指令、输出格式案例以及当前工具的具体分类，输出则是JSON格式的一组子任务。每个子任务都是一个独立的任务单元，包括“子任务名称”、“子任务描述”、“子任务类别”等重要信息。每个子任务都可以看作一个完整的任务进行执行。
+任务分解模块的输入包括具体用户需求、子任务格式的指令、输出格式案例以及当前工具的具体分类，输出则是JSON格式的一组子任务。
 
-首先，任务解耦模块的核心功能是将用户提出的复杂或模糊需求拆解为可执行的子任务。许多用户在表达需求时，往往由于信息不明确或需求过于笼统，导致系统难以直接响应。例如，用户可能提出多个相关或不相关的要求，或者在一个指令中混合了不同领域的子任务。在这种情况下，大语言模型通过对用户输入的语义分析，将任务按照逻辑和类别进行解耦。每一个子任务将独立处理，从而避免因任务过于复杂而导致系统误解或错误执行。
+每个子任务都是一个独立的执行单元，包括“子任务编号“、“子任务描述”、“子任务类别”等重要信息。
+子任务之间可能会存在时间或者参数上的依赖，该依赖会在任务分解的时候通过特殊的占位符来表示，用于串联整体的任务编排流程。
 
-总的来说，基于大语言模型的任务解耦模块通过解耦复杂任务、改写用户需求，并动态调整任务规划，使得该系统在执行复杂任务时更加灵活、精准且高效。
+首先，任务分解模块的核心功能是将用户提出的复杂或模糊需求拆解为可执行的子任务。
+许多用户在表达需求时，往往由于信息不明确或需求过于笼统，
+导致系统难以直接响应。
+例如，用户可能提出多个相关或不相关的要求，或者在一个指令中混合了不同领域的子任务。
+在这种情况下，大语言模型通过对用户输入的语义分析，将任务按照逻辑和类别进行分解。
+逻辑上分解有利于明确每个任务的目标，没有依赖关系的任务可以并行执行，能够有效提高任务的效率和正确率。
+按照类别来分解能够缩小在工具池中的搜索范围，提高搜索效率和准确性。
+其提示词如下所示：
 
+% Set Colors
+\definecolor{bgcolor}{RGB}{240,240,240} % Background color
+\definecolor{titlecolor}{RGB}{20,20,20} % Title background color
+
+\begin{center}
+% Create background with tcolorbox
+\begin{tcolorbox}[colback=bgcolor, colframe=black, width=0.8\textwidth, boxrule=0.5mm, 
+coltitle=white, colbacktitle=titlecolor, title=Task Decomposition and Response Planning with GPT-4]
+
+% Centered content
+
+\textbf{Instruction Prompt:} Decompose the task and plan its steps in a structured way. Identify tool dependencies and output the result as a JSON list.
+
+\textbf{Task Description:}  
+1. Break down the task into multiple subtasks in a step-by-step manner. Each subtask should be labeled as \textbf{StepX} (e.g., Step1, Step2).  
+2. Specify tool usage and dependencies:  
+   - If a step depends on another step's result, represent the input using its output reference, e.g., \texttt{Input: [A1]} where \texttt{A1} refers to the result from Step1.  
+   - Use multiple inputs if needed, e.g., \texttt{Input: [A1, A3]}.  
+3. Output the plan in a \texttt{JSON} format list.  
+4. Ensure logical dependencies and a clear structure for each subtask. 
+
+\textbf{Example Task:}  
+What is the most popular travel destination in Europe? And what’s the weather like there?
+
+\textbf{Expected Output:}  
+\texttt{%
+\{ \\
+\ \ \ "Steps": [ \\
+\ \ \ \ \ \ \ \{ "Step1": "Identify the most popular travel destination in Europe.", "context": [], "category": "travel" \}, \\
+\ \ \ \ \ \ \ \{ "Step2": "Fetch the current weather for the identified destination.", "context": ["A1"], "category": "weather" \}, \\
+\ \ \ \ \ \ \ \{ "Step3": "Generate a summarized response combining the destination and weather information.", "context": ["A1", "A2"], "category": "llm" \} \\
+\ \ \ ]
+\}
+}
+
+\end{tcolorbox}
+\end{center}
+
+通过以上的大语言模型提示词工程，我们可以让大语言模型输出JSON格式的任务执行流程，并且根据任务之间的依赖关系对任务进行排序。
+
+如图\ref{fig:ch4-decomposition}最终形成的任务执行结构应该是一个DAG，其中每个节点代表一个子任务，每条边代表任务之间的依赖关系。
+
+\begin{figure}[!htp]
+  \vspace{1em}
+  \centering
+  \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
+  \includegraphics[height=7cm]{../assets/ch4-任务分解模块.pdf}
+  \bicaption{任务分解模块}{Task decomposition Module}
+  \label{fig:ch4-decomposition}
+\end{figure}
+
+总的来说，基于大语言模型的任务分解模块通过分解复杂任务、改写用户需求，并显式表示子任务之间的依赖，使得该系统在执行复杂任务时更加灵活、精准且高效。
 
 \subsection{任务编排模块}
 
@@ -121,7 +181,6 @@
 我们可以理解为基于当前的工具选择，
 该任务不可行，即放弃任务执行。
 
-
 % 设置颜色
 \definecolor{bgcolor}{RGB}{240,240,240} % 背景颜色
 \definecolor{titlecolor}{RGB}{20,20,20} % 标题背景颜色
@@ -147,7 +206,7 @@ coltitle=white, colbacktitle=titlecolor, title=An Example for Response Generatio
 
 \subsubsection{初始节点召回器}
 
-在上述算法中，除初始节点外的其他点都是根据当前节点的邻居节点及其权值来选择的。
+在上述算法中，除初始节点外的其他点都是根据当前节点的邻居节点以及边的描述来选择的。
 因此，初始节点的选择是选择正确路径的关键。
 
 由于工具图中包含大量的工具，无法让大语言模型浏览所有工具信息并选择最合适的。
