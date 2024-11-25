@@ -78,7 +78,7 @@
 
 \begin{center}
 % Create background with tcolorbox
-\begin{tcolorbox}[colback=bgcolor, colframe=black, width=0.8\textwidth, boxrule=0.5mm, 
+\begin{tcolorbox}[colback=bgcolor, colframe=black, width=0.85\textwidth, boxrule=0.5mm, 
 coltitle=white, colbacktitle=titlecolor, title=Task Decomposition and Response Planning with GPT-4]
 
 % Centered content
@@ -138,16 +138,16 @@ What is the most popular travel destination in Europe? And what’s the weather 
 最后，在该算法能够通过“自我反思机制”来对路径进行判断和错误诊断，
 这一机制进一步提升了路径选择的准确率。
 
-\subsubsection{基于深度优先遍历的动态搜索算法}
+\subsubsection{基于深度优先遍历的工具选择算法}
 
-图~\ref{fig:ch4-dfs}为本文提出的基于深度优先的寻路算法。
+图~\ref{fig:ch4-dfs}为本文提出的工具选择算法的效果展示。
 
 \begin{figure}[!htp]
   \vspace{1em}
   \centering
   \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
-  \includegraphics[height=8cm]{../assets/ch4-dfs算法.pdf}
-  \bicaption{基于深度优先的寻路算法}{Dynamic DFS Search on Tool Graph}
+  \includegraphics[height=8cm]{../assets/ch4-工具选择器.pdf}
+  \bicaption{基于深度优先遍历的工具选择算法}{Dynamic Tool Selection based on DFS}
   \label{fig:ch4-dfs}
 \end{figure}
 
@@ -162,31 +162,40 @@ What is the most popular travel destination in Europe? And what’s the weather 
 若取并集之后的工具节点仍过多，我们将会计算每个工具与子任务描述的相似度，并进行排序，选择前K个工具节点提供给大语言模型。
 我们设计了简单实验来选择这个K值以及选取前K个的有效性，具体见第五章的实验部分。
 
-通过该算法可以迭代得到子任务图上每个子任务所需要调用的工具节点，并且形成一个工具之间的有向无环图，为后续调用提供调用顺序和依赖关系。
+对于搜索得到的邻居节点，我们在提示词中对不同类别的依赖关系设置了不同程度的重要性，引导大语言模型选择合适的工具节点来完成子任务。
+工具选择器的提示词如下所示：
 
+优先级为强依赖关系>弱依赖关系>时序关系。
 
-% 设置颜色
+在处理具有前序任务的工具节点时，我们通过寻找这些工具节点的邻居节点生成候选工具集合。对于多个前序任务节点，其邻居节点取并集，形成综合依赖关系的候选工具集供大语言模型（LLM）使用。
+
+为了提高工具选择的有效性，我们依据任务分解器的“类别”字段筛选相关工具节点，过滤掉与任务无关的噪声节点。如果候选工具仍然过多，则计算工具与子任务描述的语义相似度，并选择前 $K$ 个最相关的工具作为候选。
+
+提示词中引入了依赖关系优先级规则，以引导大语言模型选择合适工具完成子任务。依赖关系的优先级为：强依赖 > 弱依赖 > 时序依赖。
+
+以下为提示词示例：
+
 \definecolor{bgcolor}{RGB}{240,240,240} % 背景颜色
 \definecolor{titlecolor}{RGB}{20,20,20} % 标题背景颜色
 
 \begin{center}
-% 使用 tcolorbox 创建背景
-\begin{tcolorbox}[colback=bgcolor, colframe=black, width=0.8\textwidth, boxrule=0.5mm, 
-coltitle=white, colbacktitle=titlecolor, title=An Example for Response Generation with GPT-4]
+\begin{tcolorbox}[colback=bgcolor, colframe=black, width=0.85\textwidth, boxrule=0.5mm, coltitle=white, colbacktitle=titlecolor, title=Example Prompt for Tool Selection]
 
-% 使文字居中
+\textbf{Instructions:} You are tasked with selecting the most appropriate tools to solve the given sub-task. Based on the provided tool descriptions and their dependencies, choose tools in the following order of priority: \textbf{Strong dependency > Weak dependency > Sequential dependency}. Use the chosen tools to complete the sub-task.
 
-\textbf{Instruction Prompt:} You are currently in the response generation stage. You are given the output of selected tools that can be potentially used to solve the sub-task. Your goal is to generate a response to the user question based on the results from tools and your internal knowledge.
+\textbf{Sub-task:} Calculate the time difference between the current time and a target time.
 
-\textbf{User Question:} I would like to know the value of 5 ounces of gold plus 1 million AMZN stocks in CNY.
-
-\textbf{Return from Tool Calling:} The stock price of AMZN is 130 USD, XAU USD is 1919.7605807522993, and the exchange rate between USD and YNC is 7.24.
-
-\textbf{Output:} \textcolor{red}{Total value in CNY: Total value = Value of gold in CNY + Value of stocks in CNY = 69,495.87 + 941,200,000 = 941,269,495.87 CNY. Therefore, the combined value of 5 ounces of gold and 1 million Amazon stocks in Chinese Yuan is approximately 941,269,495.87 CNY.}
+\textbf{Available Tools:}
+\begin{enumerate}
+    \item \textit{Current Time Retrieval Tool:} No dependency, Time Information.
+    \item \textit{Time Difference Calculator Tool:} Weak dependency (requires \texttt{current\_time} as input).
+    \item \textit{Time Zone Converter Tool:} Sequential dependency (depends on output from Time Difference Calculator, Time Adjustment).
+\end{enumerate}
 
 \end{tcolorbox}
-
 \end{center}
+
+通过该算法可以迭代得到子任务图上每个子任务所需要调用的工具节点，并且形成一个工具之间的有向无环图，为后续调用提供调用顺序和依赖关系。
 
 \subsubsection{工具召回器}
 
@@ -401,7 +410,7 @@ coltitle=white, colbacktitle=titlecolor, title=An Example for Response Generatio
 
 \begin{center}
 % Create background with tcolorbox
-\begin{tcolorbox}[colback=bgcolor, colframe=black, width=0.8\textwidth, boxrule=0.5mm, 
+\begin{tcolorbox}[colback=bgcolor, colframe=black, width=0.85\textwidth, boxrule=0.5mm, 
 coltitle=white, colbacktitle=titlecolor, title=An Example for Response Generation with GPT-4]
 
 % Centered content
