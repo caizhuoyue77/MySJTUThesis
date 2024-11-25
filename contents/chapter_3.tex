@@ -11,7 +11,7 @@
 3.如何验证工具图谱作为知识库的有效性？
 4.如何有效地在图谱上搜索相关节点？
 
-基于上述问题，我们进行了以下研究：首先，我们提出了三种数据筛选策略，从API工具和API调用路径的角度对数据进行了筛选，保留了一批高质量的工具路径数据。
+基于上述问题，我们进行了以下研究：首先，我们提出了基于工具描述信息和基于工具调用路径的两种数据筛选策略，从API工具和API调用路径的角度对数据进行了筛选，保留了一批高质量的工具路径数据。
 其次，我们设计了工具动态转移权值和工具静态转移权值两种方式，通过对工具路径数据进行计算，得到了工具之间的转换权值以及每个工具的可用性分数，用于后续辅助大语言模型进行工具选择。
 然后，关于验证工具图谱作为知识库的有效性，我们对比了直接用普通的检索增强方式和包含图谱知识的方式，验证了构建工具图谱的有效性和必要性。
 最后，我们通过对向量模型进行负样本构造和有监督的微调，获得了一个API检索器，并对工具检索的召回率进行了充分实验，证明了该模型在节点搜索上的有效性。
@@ -36,11 +36,11 @@
 
 在大语言模型工具调用研究中，存在许多公开的数据集和Benchmark，这些数据集通常包括工具的描述文件（例如JSON格式或OpenAPI格式）、工具调用路径，以及工具调用需求的测试数据等。这些数据集为大语言模型工具调用的性能评估和模型优化提供了重要的基准资源。
 
-目前常见的工具调用数据集包括ToolBench\cite{Qin2023}、EasyTool\cite{yuan2024easytool}、API-Bank\cite{Li2023c}、TaskBench\cite{shen2023taskbench}和ToolAce\cite{liu2024toolace}等。这些数据集在工具数量、描述细节、调用复杂度以及场景覆盖方面具有各自的特点。其中，ToolBench以其覆盖范围广、工具真实、调用路径数据丰富等优势，被广泛应用于大语言模型工具调用相关的研究任务中。
+目前常见的工具调用数据集包括ToolBench\cite{Qin2023}、API-Bank\cite{Li2023c}、TaskBench\cite{shen2023taskbench}和ToolAce\cite{liu2024toolace}等。这些数据集在工具数量、描述细节、调用复杂度以及场景覆盖方面具有各自的特点。其中，ToolBench以其覆盖范围广、工具真实、调用路径数据丰富等优势，被广泛应用于大语言模型工具调用相关的研究任务中。
 
 在本研究中，选择ToolBench作为主要数据集，原因在于其具备以下特点。首先，ToolBench的数据来自真实世界的API工具，这些工具不仅可以直接调用，其中部分工具甚至是免费的。这种基于真实环境的数据，使研究结果更具实践意义。其次，ToolBench中的API通过统一的密钥（key）即可调用，无需额外的注册或复杂的鉴权步骤，极大地降低了数据使用的门槛和开发成本。此外，ToolBench包含了大量API工具，覆盖49个类别的16464个真实的RestAPI工具，工具描述较为详细且覆盖范围广泛，即使部分工具描述存在不足，也可以通过平台寻找功能相似的替代工具。最后，ToolBench提供了丰富的工具调用路径数据集，共计126486条工具调用路径，这些路径数据不仅体现了工具协作完成任务的逻辑关系，还为研究工具调用规律提供了宝贵资源。
 
-ToolBench的整体构造聚焦于多情景的工具调用，其数据来源于开放的API托管平台“RapidAPI Hub”。在RapidAPI Hub平台上，API工具以层级化结构进行组织。首先是大类别（如天气、金融、翻译等），每个大类别包含多个工具集（tool collections），每个工具集中进一步包含若干具体的API工具。用户通过订阅工具集即可访问其对应的API工具。ToolBench在此基础上对这些工具进行了统一规范化处理，形成了一套完整的数据集。
+ToolBench的整体构造聚焦于多情景的工具调用，其数据来源于开放的API托管平台“RapidAPI Hub”。在RapidAPI Hub平台上，API工具以层级化结构进行组织。首先是大类别（如天气、金融、翻译等），每个大类别包含多个工具集（tool collections），每个工具集中进一步包含若干具体的API工具。用户通过订阅工具集即可访问其对应的API工具。
 
 ToolBench包含多种类型的数据，包括每个工具集的详细描述信息（例如工具集名称、描述、类别等），工具的输入和输出参数列表，工具调用的示例代码，以及工具调用路径数据等。这些数据为工具调用任务的研究提供了全面支持。在本文的研究中，为了构建工具图谱，重点使用了ToolBench中的工具调用路径数据。这些路径数据描述了不同工具协作完成任务的调用顺序和逻辑关系，为工具图谱的构建奠定了基础。
 
@@ -61,7 +61,7 @@ ToolBench包含多种类型的数据，包括每个工具集的详细描述信�
     \item 3分：描述非常详细，语言清晰流畅，信息完整且丰富。
 \end{itemize}
 
-筛选规则为：只有在所有维度上均得分为3分的工具才会被保留下来。
+筛选规则：只有在所有维度上均得分为3分的工具才会被保留下来。
 
 为验证大语言模型的打分可靠性，我们抽样了100个API的信息提交给3位人工评审员进行独立打分，并与大语言模型的打分结果进行了对比分析。
 
@@ -95,7 +95,6 @@ ToolBench包含多种类型的数据，包括每个工具集的详细描述信�
   \end{table}
 
 由上可见，人工打分与大语言模型打分具有较高的一致性，说明大语言模型评分与人工评审具有较高的可信度。
-
 
 在完成描述信息筛选后，我们对筛选出的API进行了连通性测试，以确保其实际可用性。测试内容包括：
 \begin{itemize}
@@ -137,39 +136,6 @@ ToolBench包含多种类型的数据，包括每个工具集的详细描述信�
 
 \textbf{删除调用错误节点}：在筛选优质工具路径后，我们需要进一步清洗工具路径数据，以确保调用路径上的工具都可执行。我们在调用路径中根据\texttt{"error"}字段的内容来决定是否删除节点。对于调用过程中发生错误的工具节点（如未授权错误、API不可用等错误），将其从路径中剔除，以确保路径的完整性和可执行性。最终，保留下的应该是一条线性且无错误的调用路径。
 
-% \begin{table}[h!]
-%   \centering
-%   \begin{tabular}{|l|p{10cm}|} % 第二列设置为宽度为 10cm 的段落列
-%   \hline
-%   \textbf{Error Type} & \textbf{Description} \\ \hline
-%   API Not Working Error (Unreachable) & The API server is not reachable, possibly due to server downtime or network issues. \\ \hline
-%   Message Error & The response message has a formatting issue or cannot be parsed correctly. \\ \hline
-%   Timeout Error & The request to the API timed out due to slow response or network delays. \\ \hline
-%   Request Invalid, Data Error & The request contains invalid parameters, incorrect data, or violates API rules. \\ \hline
-%   Unauthorized Error & The client does not have the required permissions or valid credentials to access the API. \\ \hline
-%   \end{tabular}
-%   \caption{API Error Types and Their Descriptions}
-%   \label{tab:api_errors}
-% \end{table}
-
-
-% 【最好画一个图，表示三种数据筛选的逻辑】
-
-% 原始数据集中包含了xx条工具调用路径数据，
-% 其中平均的工具调用次数为xxx次，
-% 经过上述的筛选逻辑后，共剩下xxx条工具调用路径数据，平均工具调用次数为xx次，
-% 我们基于该高质量的路径数据集建立工具图谱。
-
-% 工具图谱的构建对于系统整体的性能和效率至关重要。
-% 在这里，我们参考了ToolNet\cite{Liu2024}中的设计，
-% 将API工具作为图谱中的工具节点，
-% 工具节点之间的边上带有一个权值，该权值叫做“工具转移权值”，用于代表
-% 从当前工具出发，有多大的可能性会跳转到调用另一个工具的使用。
-% 除了边上带有权值，我们给工具节点也赋予了一个权值，该权值叫做“工具可用性权值”，用于表示该
-% 工具的可用性。因此，在该工具图谱中，权值的计算方式非常重要。边和点的权值应该有区分度，不然无法提供有效的信息。
-
-% 我们首先将会介绍基于历史工具调用数据的静态图谱构建方式，由于API工具具有时效性和多变性，我们还会对图上的节点、节点权值还有边上的权值进行动态的更新。
-
 
 \section{图谱构建}
 
@@ -177,8 +143,20 @@ ToolBench包含多种类型的数据，包括每个工具集的详细描述信�
 
 工具图谱中的实体类别主要包括三种：工具节点、工具组节点和工具类别节点。每种实体类别分别表示不同的抽象层次和功能，具体如下：
 
+
 \subsubsection{工具（Tool）}
-工具节点是图谱的基础实体，表示具体的API接口工具或单个功能模块。其属性如下：
+
+工具节点是图谱的基础实体，表示具体的API接口工具或单个功能模块。其结构如图\ref{fig:ch3-kg-tool}所示：
+
+\begin{figure}[!htp]
+    \vspace{1em}
+    \centering
+    \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
+    \includegraphics[height=5cm]{../assets/图谱格式-tool.pdf}
+    \bicaption{知识图谱工具实体}{Tool Entity Structure}
+    \label{fig:ch3-kg-tool}
+  \end{figure}
+
 \begin{itemize}
     \item \textbf{Name（名称）}：工具的唯一标识名称。
     \item \textbf{URL（接口地址）}：API工具的访问地址。
@@ -186,21 +164,29 @@ ToolBench包含多种类型的数据，包括每个工具集的详细描述信�
     \item \textbf{Method（请求方法）}：支持的HTTP方法，如GET、POST等。
     \item \textbf{Required Parameters（必需参数）}：调用API所需的必填参数列表。
     \item \textbf{Optional Parameters（可选参数）}：调用API的可选参数列表。
-    \item \textbf{Test Endpoint（测试端点）}：用于测试的API地址或信息。
 \end{itemize}
 
 在工具图谱的组织中，每个工具节点只属于一个工具组。多个工具可以归属于同一个工具组，从而形成对工具功能的逻辑分类。例如，“酒店搜索”工具和“酒店评论查询”工具都可能属于“旅游服务工具组”。这种一对多的归属关系确保工具图谱结构的清晰性，同时避免工具节点的多重归属问题。
 
 \subsubsection{工具组（Tool Group）}
-工具组节点表示一组功能相关的工具的集合，用于组织和分类多个工具节点。其属性如下：
+
+工具组节点表示一组功能相关的工具的集合，用于组织和分类多个工具节点。其结构如图\ref{fig:ch3-kg-tool-group}所示：
+
+\begin{figure}[!htp]
+    \vspace{1em}
+    \centering
+    \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
+    \includegraphics[height=5cm]{../assets/图谱格式-tool group.pdf}
+    \bicaption{知识图谱工具组实体}{Tool Group Entity Structure}
+    \label{fig:ch3-kg-tool-group}
+  \end{figure}
+
 \begin{itemize}
-    \item \textbf{Product ID（产品ID）}：工具组的唯一标识符。
-    \item \textbf{Tool Description（工具描述）}：对该工具组的整体描述。
-    \item \textbf{Home URL（链接）}：工具组的官网链接或信息页面。
+    \item \textbf{Group ID（工具组ID）}：工具组的唯一标识符。
     \item \textbf{Name（名称）}：工具组的名称。
-    \item \textbf{Title（标题）}：工具组的显示标题。
+    \item \textbf{TDescription（工具组描述）}：对该工具组的整体描述。
+    \item \textbf{Home URL（链接）}：工具组的官网链接或信息页面。
     \item \textbf{Pricing（定价）}：工具组的定价信息，例如``免费（FREE）''。
-    \item \textbf{Tool Name（工具名称）}：与工具组相关联的主要工具名称。
     \item \textbf{Score（评分）}：工具组的相关指标，包括：
         \begin{itemize}
             \item \textbf{AvgServiceLevel（服务水平平均值）}：表示服务稳定性的指标，百分比表示。
@@ -213,9 +199,18 @@ ToolBench包含多种类型的数据，包括每个工具集的详细描述信�
 
 工具组进一步与工具类别关联，每个工具组只属于一个工具类别，从而实现高层次的分类。例如，“旅游服务工具组”可以归属于“旅游与出行”类别。工具组与工具类别之间的一对多关系，能够有效区分不同工具组的功能领域。
 
-
 \subsubsection{工具类别（Tool Category）}
-工具类别节点表示工具所属的领域、用途或分类。例如，工具类别可以表示工具的主要负责内容为“旅游出行”、“美食”或“电影媒体”。其属性如下：
+工具类别节点表示工具所属的领域、用途或分类。例如，工具类别可以表示工具的主要负责内容为“旅游出行”、“美食”或“电影媒体”。其结构如图\ref{fig:ch3-kg-category}所示：
+
+\begin{figure}[!htp]
+    \vspace{1em}
+    \centering
+    \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
+    \includegraphics[height=5cm]{../assets/图谱格式-category.pdf}
+    \bicaption{知识图谱工具类别实体}{Category Entity Structure}
+    \label{fig:ch3-kg-category}
+  \end{figure}
+
 \begin{itemize}
     \item \textbf{Name（名称）}：类别的名称，用于标识该类别。
     \item \textbf{Description（描述）}：对工具类别的简要说明，描述其应用场景或技术范围。
@@ -260,19 +255,19 @@ ToolBench包含多种类型的数据，包括每个工具集的详细描述信�
 
 本节详细阐述工具知识图谱的构建过程，包括节点和依赖关系的抽取、存储，以及如何将数据导入Neo4j进行存储和查询。同时探讨如何扩展图谱构建的内容和方法，为更丰富的应用场景提供支持。
 
-\subsubsection{直接用规则抽取所有工具组、工具、类别节点}
+\subsubsection{基于规则的工具有关实体抽取}
 
 工具组、工具和工具类别节点的抽取主要依赖规则匹配。从现有的JSON格式工具描述文档中，按照预定义规则通过代码匹配关键信息。工具组的抽取字段包括产品ID、工具组名称、工具组描述和主页链接等信息，这些字段为工具组提供全局标识及其关联性。工具节点的提取则更加具体，记录每个工具的名称、API地址、功能描述、HTTP方法（如GET或POST）、必需参数和可选参数等关键信息。工具类别节点用于标识技术领域或功能分类，从技术标签中提取类别名称、描述及相关技术栈等字段。
 
 通过规则提取的节点数据存储为结构化格式。这些文件为图谱数据导入提供了清晰的数据基础，确保后续步骤的顺利进行。
 
-\subsubsection{直接用代码规则抽取时序依赖}
+\subsubsection{基于规则的时序依赖关系抽取}
 
 时序依赖是通过分析工具调用日志数据来构建的。首先，对调用日志按照时间戳进行排序，从而生成工具调用的顺序链条。接着，识别这些调用链中的连续工具对，将其标记为时序依赖。这种依赖通常用于捕获工具在真实调用路径中的关系，反映调用流程的顺序逻辑。例如，旅行工具链中“酒店搜索”紧接着“酒店评论查询”，这反映了用户实际使用时的时序逻辑。
 
 抽取后的时序依赖关系记录起点工具、终点工具、依赖类型（标记为“时序依赖”）以及描述字段。时序依赖的记录不仅有助于绘制工具调用路径，还为分析流程优化提供依据。
 
-\subsubsection{规则+大语言模型的依赖构建}
+\subsubsection{基于大语言模型的资源依赖抽取}
 
 在资源依赖关系的构建中，规则匹配与大语言模型（LLM）结合的方式被应用。首先，通过规则匹配提取工具的输入参数和输出字段，将字段名和类别进行对比，初步判断是否存在资源依赖。例如，“酒店评论查询”工具需要“酒店ID”作为输入，如果“酒店ID”是由“酒店搜索”工具提供的输出，则可以标记为强依赖关系。规则匹配能够高效处理结构化和模式化的依赖，但在复杂场景下可能有所不足。
 
@@ -649,4 +644,6 @@ ToolBench包含多种类型的数据，包括每个工具集的详细描述信�
 
 
 \section{本章小结}
+
+本章提出了一种基于工具调用路径的工具图谱构建方法，系统化地完成了从数据筛选到图谱验证的核心流程。首先，针对工具描述信息和调用路径数据，设计了两种数据筛选策略，提取出高质量的工具组和有效的工具调用路径，为图谱构建奠定了坚实的数据基础。在图谱结构设计方面，定义了工具图谱的核心概念模型，包括工具节点、工具组节点和工具类别节点，明确了它们之间的层次关系与依赖结构。通过构建时序依赖和资源依赖两种关系，建模了工具之间的调用逻辑，保障了图谱的结构化和实用性。最终，结合数据筛选、清洗与数据格式转换等操作，成功构建了一个高质量的工具图谱，并将其导入Neo4j数据库以实现可视化和高效查询，为复杂任务场景下的工具调用与规划提供了有力支持。
 

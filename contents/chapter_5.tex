@@ -344,49 +344,49 @@ NDCG（Normalized Discounted Cumulative Gain）用于评价排序效果，通过
 
 \end{enumerate}
 
-\section{消融实验}
+% \section{消融实验}
 
-\subsection{实验设置}
+% \subsection{实验设置}
 
-为了验证工具图谱在该方案中的有效性，我们设计了一系列消融实验，重点分析工具图谱的各个组成部分对系统性能的影响。具体而言，我们分别移除了工具图谱中的边权和点权值，以观察其对模型性能的作用。同时，本实验基于上一节中筛选得到的测试数据进行评估，确保实验具有代表性和严谨性。
+% 为了验证工具图谱在该方案中的有效性，我们设计了一系列消融实验，重点分析工具图谱的各个组成部分对系统性能的影响。具体而言，我们分别移除了工具图谱中的边权和点权值，以观察其对模型性能的作用。同时，本实验基于上一节中筛选得到的测试数据进行评估，确保实验具有代表性和严谨性。
 
-\subsection{实验结果}
+% \subsection{实验结果}
 
-实验结果如表 \ref{tab:ablation} 所示。
+% 实验结果如表 \ref{tab:ablation} 所示。
 
-\begin{table}[h]
-  \centering
-  \caption{Ablation Study Results of ToolGraph}
-  \begin{tabular}{l|c|c}
-  \toprule
-  \textbf{Experimental Setting}            & \textbf{Pass Rate} & \textbf{Win Rate} \\ \midrule
-  Complete Model (with ToolGraph)          & \textbf{85.2\%}    & \textbf{81.4\%}   \\
-  No ToolGraph                             & 74.8\%             & 69.2\%            \\
-  ToolGraph without Edge Weights           & 78.3\%             & 72.5\%            \\
-  ToolGraph without Node Weights           & 80.1\%             & 76.1\%            \\
-  ToolGraph without Weights                & 76.9\%             & 71.0\%            \\ 
-  \bottomrule
-  \end{tabular}
-  \label{tab:ablation}
-\end{table}
+% \begin{table}[h]
+%   \centering
+%   \caption{Ablation Study Results of ToolGraph}
+%   \begin{tabular}{l|c|c}
+%   \toprule
+%   \textbf{Experimental Setting}            & \textbf{Pass Rate} & \textbf{Win Rate} \\ \midrule
+%   Complete Model (with ToolGraph)          & \textbf{85.2\%}    & \textbf{81.4\%}   \\
+%   No ToolGraph                             & 74.8\%             & 69.2\%            \\
+%   ToolGraph without Edge Weights           & 78.3\%             & 72.5\%            \\
+%   ToolGraph without Node Weights           & 80.1\%             & 76.1\%            \\
+%   ToolGraph without Weights                & 76.9\%             & 71.0\%            \\ 
+%   \bottomrule
+%   \end{tabular}
+%   \label{tab:ablation}
+% \end{table}
 
-  \subsection{实验分析}
+%   \subsection{实验分析}
 
-  表 \ref{tab:ablation} 的实验结果清晰地展示了工具图谱及其组成部分对模型性能的影响，具体分析如下：
+%   表 \ref{tab:ablation} 的实验结果清晰地展示了工具图谱及其组成部分对模型性能的影响，具体分析如下：
   
-  \begin{enumerate}
-      \item \textbf{工具图谱的整体作用}：
-      当移除工具图谱时，通过率显著下降，从 85.2\% 降至 74.8\%；胜率从 81.4\% 降至 69.2\%；执行步骤从 3.1 增加到 4.2。这表明，工具图谱显著提高了任务解决的效率与准确性，帮助模型减少了无效调用，并优化了任务路径的合理性。
+%   \begin{enumerate}
+%       \item \textbf{工具图谱的整体作用}：
+%       当移除工具图谱时，通过率显著下降，从 85.2\% 降至 74.8\%；胜率从 81.4\% 降至 69.2\%；执行步骤从 3.1 增加到 4.2。这表明，工具图谱显著提高了任务解决的效率与准确性，帮助模型减少了无效调用，并优化了任务路径的合理性。
       
-      \item \textbf{边权值的影响}： 
-      移除边权值时，通过率和胜率均出现下降，分别降至 78.3\% 和 72.5\%；执行步骤增加到 3.7。边权值的移除可能导致模型无法准确判断工具之间的依赖关系，从而增加了冗余操作。
+%       \item \textbf{边权值的影响}： 
+%       移除边权值时，通过率和胜率均出现下降，分别降至 78.3\% 和 72.5\%；执行步骤增加到 3.7。边权值的移除可能导致模型无法准确判断工具之间的依赖关系，从而增加了冗余操作。
       
-      \item \textbf{点权值的影响}：
-      当点权值被移除时，通过率从完整模型的 85.2\% 降至 80.1\%，胜率下降至 76.1\%，执行步骤数略微上升至 3.4。点权值在指导工具优先级排序方面起到重要作用，其移除会降低调用的效率和任务解决的成功率。
+%       \item \textbf{点权值的影响}：
+%       当点权值被移除时，通过率从完整模型的 85.2\% 降至 80.1\%，胜率下降至 76.1\%，执行步骤数略微上升至 3.4。点权值在指导工具优先级排序方面起到重要作用，其移除会降低调用的效率和任务解决的成功率。
       
-      \item \textbf{权值的综合作用}：
-      移除所有权值后，模型性能进一步下降，通过率和胜率分别为 76.9\% 和 71.0\%，执行步骤增加到 3.9。这说明权值是工具图谱中不可或缺的部分，能够显著提升路径规划的合理性。
-  \end{enumerate}
+%       \item \textbf{权值的综合作用}：
+%       移除所有权值后，模型性能进一步下降，通过率和胜率分别为 76.9\% 和 71.0\%，执行步骤增加到 3.9。这说明权值是工具图谱中不可或缺的部分，能够显著提升路径规划的合理性。
+%   \end{enumerate}
 
 \section{本章小结}
 
