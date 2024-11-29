@@ -222,17 +222,17 @@ API调用问答模块通过流式输出和多轮交互，提升用户体验。�
   \label{fig:ch6-all-tools}
 \end{figure}
 
-% 图\ref{fig:ch6-tool-kg} 展示了本系统的工具图谱可视化页面，它与上方的工具浏览页形成了互补的关系。在工具浏览页中，用户可以查看各个工具的详细信息，但无法直观了解工具之间的关联。而在工具图谱可视化页面中，用户可以显式地看到工具之间的参数依赖关系和时序依赖关系，补充了工具浏览页的信息空白。
-% 我们对图谱中的工具组和工具节点进行了颜色上的区分，使用户能够辨别工具组与工具之间的从属关系。
+图\ref{fig:ch6-tool-kg} 展示了本系统的工具图谱可视化页面，它与上方的工具浏览页形成了互补的关系。在工具浏览页中，用户可以查看各个工具的详细信息，但无法直观了解工具之间的关联。而在工具图谱可视化页面中，用户可以显式地看到工具之间的参数依赖关系和时序依赖关系，补充了工具浏览页的信息空白。
+我们对图谱中的工具组和工具节点进行了颜色上的区分，使用户能够辨别工具组与工具之间的从属关系。
 
-% \begin{figure}[H]
-%   \vspace{1em}
-%   \centering
-%   \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
-%   \includegraphics[height=8cm]{../assets/ch6-工具图谱可视化.png}
-%   \bicaption{工具知识图谱可视化}{Tool Knowledge Graph Visualization}
-%   \label{fig:ch6-tool-kg}
-% \end{figure}
+\begin{figure}[H]
+  \vspace{1em}
+  \centering
+  \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
+  \includegraphics[height=8cm]{../assets/ch6-工具图谱可视化.png}
+  \bicaption{工具知识图谱可视化}{Tool Knowledge Graph Visualization}
+  \label{fig:ch6-tool-kg}
+\end{figure}
 
 图\ref{fig:ch6-add-tool}展示了本系统的自定义工具添加页面。用户通过填写工具相关的必要信息（如API名称、工具组、请求地址及参数等），即可将自定义API导入系统。此外，页面提供的测试功能支持用户在添加前验证API的可用性。为提升系统的稳定性并确保用户配置的正确性，仅当测试返回码为200时，工具才可成功添加至系统。
 
