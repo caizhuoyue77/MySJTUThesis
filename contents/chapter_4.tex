@@ -31,7 +31,7 @@
   \vspace{1em}
   \centering
   \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
-  \includegraphics[height=7cm]{../assets/ch4-整体框架图-3.pdf}
+  \includegraphics[height=8cm]{../assets/ch4-整体框架图-3.pdf}
   \bicaption{整体框架}{Overview of the Dynamic Tool Selection Framework}
   \label{fig:ch4-framework}
 \end{figure}
@@ -82,35 +82,37 @@
 
 \begin{center}
 % Create background with tcolorbox
-\begin{tcolorbox}[colback=bgcolor, colframe=black, width=0.85\textwidth, boxrule=0.5mm, 
+\begin{tcolorbox}[colback=bgcolor, colframe=black, width=0.95\textwidth, boxrule=0.5mm, 
 coltitle=white, colbacktitle=titlecolor, title=Task Decomposition and Response Planning with GPT-4]
 
 % Centered content
 
-\textbf{Instruction Prompt:} Decompose the task and plan its steps in a structured way. Identify tool dependencies and output the result as a JSON list.
+\textbf{<Task>} Decompose the task and plan its steps in a structured way. 
 
-\textbf{Task Description:}  
+\textbf{<Instructions>} 
+
 1. Break down the task into multiple subtasks in a step-by-step manner. Each subtask should be labeled as \textbf{StepX} (e.g., Step1, Step2).  
+
 2. Specify tool usage and dependencies:  
    - If a step depends on another step's result, represent the input using its output reference, e.g., \texttt{Input: [A1]} where \texttt{A1} refers to the result from Step1.  
    - Use multiple inputs if needed, e.g., \texttt{Input: [A1, A3]}.  
+
 3. Output the plan in a \texttt{JSON} format list.  
-4. Ensure logical dependencies and a clear structure for each subtask. 
 
-\textbf{Example Task:}  
-What is the most popular travel destination in Europe? And what’s the weather like there?
+\textbf{<Example>}  
 
-\textbf{Expected Output:}  
+Task: What is the most popular travel destination in South Korea? And what’s the weather like there?
+
+Expected Output:
 \texttt{%
 \{ \\
 \ \ \ "Steps": [ \\
-\ \ \ \ \ \ \ \{ "Step1": "Identify the most popular travel destination in Europe.", "context": [], "category": "travel" \}, \\
-\ \ \ \ \ \ \ \{ "Step2": "Fetch the current weather for the identified destination.", "context": ["A1"], "category": "weather" \}, \\
-\ \ \ \ \ \ \ \{ "Step3": "Generate a summarized response combining the destination and weather information.", "context": ["A1", "A2"], "category": "llm" \} \\
+\ \ \ \ \ \ \ \{ "Step1": "Identify the most popular travel destination in South Korea.", "context": [], "category": "travel" \}, \\
+\ \ \ \ \ \ \ \{ "Step2": "Get the current weather for the destination.", "context": ["A1"], "category": "weather" \}, \\
+\ \ \ \ \ \ \ \{ "Step3": "Generate a summary.", "context": ["A1", "A2"], "category": "llm" \} \\
 \ \ \ ]
 \}
 }
-
 \end{tcolorbox}
 \end{center}
 
@@ -122,7 +124,7 @@ What is the most popular travel destination in Europe? And what’s the weather 
   \vspace{1em}
   \centering
   \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
-  \includegraphics[height=7cm]{../assets/ch4-任务分解模块.pdf}
+  \includegraphics[height=8cm]{../assets/ch4-任务分解模块.pdf}
   \bicaption{任务分解模块}{Task Decomposition Module}
   \label{fig:ch4-decomposition}
 \end{figure}
@@ -180,17 +182,21 @@ What is the most popular travel destination in Europe? And what’s the weather 
 \definecolor{titlecolor}{RGB}{20,20,20} % 标题背景颜色
 
 \begin{center}
-\begin{tcolorbox}[colback=bgcolor, colframe=black, width=0.85\textwidth, boxrule=0.5mm, coltitle=white, colbacktitle=titlecolor, title=Example Prompt for Tool Selection]
+\begin{tcolorbox}[colback=bgcolor, colframe=black, width=0.95\textwidth, boxrule=0.5mm, coltitle=white, colbacktitle=titlecolor, title=Example Prompt for Tool Selection]
 
-\textbf{Instructions:} You are tasked with selecting the most appropriate tools to solve the given sub-task. Based on the provided tool descriptions and their dependencies, choose tools in the following order of priority: \textbf{Strong dependency > Weak dependency > Sequential dependency}. Use the chosen tools to complete the sub-task.
+\textbf{<Task>}
 
-\textbf{Sub-task:} Calculate the time difference between the current time and a target time.
+You are tasked with selecting the most appropriate tools to solve the given sub-task. Based on the provided tool descriptions and their dependencies, choose tools in the following order of priority: \textbf{Strong dependency > Weak dependency > Sequential dependency}. 
 
-\textbf{Available Tools:}
+\textbf{<Subtask>}
+
+Calculate the time difference between the current time and a target time.
+
+\textbf{<Available Tools>}
 \begin{enumerate}
-    \item \textit{Current Time Retrieval Tool:} No dependency, Time Information.
     \item \textit{Time Difference Calculator Tool:} Weak dependency (requires \texttt{current\_time} as input).
     \item \textit{Time Zone Converter Tool:} Sequential dependency (depends on output from Time Difference Calculator, Time Adjustment).
+    \item \textit{World Clock Lookup Tool:} Weak dependency (requires \texttt{location} as input, outputs current local time in the specified location).
 \end{enumerate}
 
 \end{tcolorbox}
@@ -476,44 +482,41 @@ T_{\text{并行}} = 4 \cdot 1 = 4 \, \text{秒}
 
 \begin{center}
 % Create background with tcolorbox
-\begin{tcolorbox}[colback=bgcolor, colframe=black, width=0.85\textwidth, boxrule=0.5mm, 
+\begin{tcolorbox}[colback=bgcolor, colframe=black, width=0.95\textwidth, boxrule=0.5mm, 
 coltitle=white, colbacktitle=titlecolor, title=An Example for Response Generation with GPT-4]
 
 % Centered content
 
-\textbf{Instruction Prompt:} Generate a response to the user's question based on the results from the tools and your internal knowledge.
+\textbf{<Task>} 
 
-\textbf{Task:} What's the most popular travel destination in Europe? And what's the weather like there?
+Generate a response to the user's question based on the results from the tools.
 
-\textbf{Return from Tool Calling:} 
-\{%
-    "popular\_travel\_destination": \{%
-        "destination": "Paris, France",%
-        "popularity\_score": 9.8%
-    \},%
-    "global\_weather\_search": \{%
-        "location": "Paris, France",%
-        "weather": \{%
-            "temperature": "15°C",%
-            "condition": "Partly Cloudy",%
-            "humidity": "60\%",%
-        \},%
-        "timestamp": "2024-11-17T14:00:00Z"%
-    \}%
-\}
+\textbf{<User Query>(You should directly respond to this)}
 
-\textbf{Instructions:}
-1. If the tool's output is incorrect, or if the information from the tools and your internal knowledge is insufficient to answer, do not respond. Avoid fabricating any untrue information.
+What's the most popular travel destination in Korea And what's the weather like there?
+
+\textbf{<Response from Tools>} 
+
+\texttt{%
+\{ "popular\_travel\_destination": \{ "destination": "Seoul", "popularity\_score": 9.5 \}, 
+  "global\_weather\_search": \{ "location": "Seoul, Korea", 
+    "weather": \{ "temperature": "-4°C", "condition": "Snowy", "humidity": "60\%" \}, 
+    "timestamp": "2024-11-28T14:00:00Z" \} 
+\}%
+}
+
+\textbf{<Instructions>}
+
+1. If the tool's output is incorrect, or if the information from the tools and your internal knowledge is insufficient to answer, simple say you can't answer.
 
 2. Think step by step before answering. Plan the key points to address before formulating your response.
 
-3. Only answer the user's request. Do not include any additional or irrelevant information.
+3. Do not include any additional, irrelevant or fabricated information.
 
-4. Use the same language as the Task (in this case, English).
+4. Provide the output in JSON format.
 
-5. Provide the output in JSON format.
+\textbf{<Example Output>}  
 
-\textbf{Output Format:}  
 \{%
     "Steps": [%
         "Find the most popular travel destination in Europe.",%

@@ -1,4 +1,4 @@
-\chapter{基于工具调用路径的工具图谱构建}
+\chapter{基于规则匹配与大语言模型的工具图谱构建}
 
 \section{引言}
 
@@ -148,14 +148,14 @@ ToolBench包含多种类型的数据，包括每个工具集的详细描述信�
 
 工具节点是图谱的基础实体，表示具体的API接口工具或单个功能模块。其结构如图\ref{fig:ch3-kg-tool}所示：
 
-\begin{figure}[!htp]
+\begin{figure}[H]
     \vspace{1em}
     \centering
     \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
     \includegraphics[height=5cm]{../assets/图谱格式-tool.pdf}
     \bicaption{知识图谱工具实体}{Tool Entity Structure}
     \label{fig:ch3-kg-tool}
-  \end{figure}
+\end{figure}
 
 \begin{itemize}
     \item \textbf{Name（名称）}：工具的唯一标识名称。
@@ -172,7 +172,7 @@ ToolBench包含多种类型的数据，包括每个工具集的详细描述信�
 
 工具组节点表示一组功能相关的工具的集合，用于组织和分类多个工具节点。其结构如图\ref{fig:ch3-kg-tool-group}所示：
 
-\begin{figure}[!htp]
+\begin{figure}[H]
     \vspace{1em}
     \centering
     \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
@@ -202,7 +202,7 @@ ToolBench包含多种类型的数据，包括每个工具集的详细描述信�
 \subsubsection{工具类别（Tool Category）}
 工具类别节点表示工具所属的领域、用途或分类。例如，工具类别可以表示工具的主要负责内容为“旅游出行”、“美食”或“电影媒体”。其结构如图\ref{fig:ch3-kg-category}所示：
 
-\begin{figure}[!htp]
+\begin{figure}[H]
     \vspace{1em}
     \centering
     \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
@@ -253,25 +253,115 @@ ToolBench包含多种类型的数据，包括每个工具集的详细描述信�
 
 \subsection{实例模型构建}
 
-本节详细阐述工具知识图谱的构建过程，包括节点和依赖关系的抽取、存储，以及如何将数据导入Neo4j进行存储和查询。同时探讨如何扩展图谱构建的内容和方法，为更丰富的应用场景提供支持。
+本节详细阐述工具知识图谱的构建过程，包括节点和依赖关系的抽取、存储，以及如何将数据导入Neo4j进行存储和查询。
 
-\subsubsection{基于规则的工具有关实体抽取}
+\subsubsection{基于规则的实体抽取}
 
 工具组、工具和工具类别节点的抽取主要依赖规则匹配。从现有的JSON格式工具描述文档中，按照预定义规则通过代码匹配关键信息。工具组的抽取字段包括产品ID、工具组名称、工具组描述和主页链接等信息，这些字段为工具组提供全局标识及其关联性。工具节点的提取则更加具体，记录每个工具的名称、API地址、功能描述、HTTP方法（如GET或POST）、必需参数和可选参数等关键信息。工具类别节点用于标识技术领域或功能分类，从技术标签中提取类别名称、描述及相关技术栈等字段。
 
-通过规则提取的节点数据存储为结构化格式。这些文件为图谱数据导入提供了清晰的数据基础，确保后续步骤的顺利进行。
+通过规则提取的节点数据存储为结构化的CSV文件，这些文件为图谱数据导入提供了清晰的数据基础，确保后续步骤的顺利进行。
+
+\begin{table}[ht]
+\centering
+\caption{工具实体数据格式}
+\label{tab:csv-example}
+\renewcommand{\arraystretch}{1.2}
+\scriptsize % 调整字体大小
+\begin{tabular}{|l|l|l|p{6cm}|l|}
+\hline
+\textbf{Category} & \textbf{Product ID} & \textbf{Tool Name} & \textbf{API Description} & \textbf{Hash ID} \\ \hline
+Food & \texttt{api\_dcbd91ed...} & Worldwide Recipes & Get detail of recipe & \texttt{167fc042...} \\ \hline
+Food & \texttt{api\_dcbd91ed...} & Worldwide Recipes & Get recipes by author & \texttt{d8c4f1e7...} \\ \hline
+Food & \texttt{api\_dcbd91ed...} & Worldwide Recipes & Get reviews & \texttt{47f3a387...} \\ \hline
+\end{tabular}
+\end{table}
 
 \subsubsection{基于规则的时序依赖关系抽取}
 
-时序依赖是通过分析工具调用日志数据来构建的。首先，对调用日志按照时间戳进行排序，从而生成工具调用的顺序链条。接着，识别这些调用链中的连续工具对，将其标记为时序依赖。这种依赖通常用于捕获工具在真实调用路径中的关系，反映调用流程的顺序逻辑。例如，旅行工具链中“酒店搜索”紧接着“酒店评论查询”，这反映了用户实际使用时的时序逻辑。
+时序依赖是通过分析工具调用路径数据来构建的。经过上述的对调用路径的清洗流程，剩下的工具调用数据均可理解为高质量路径。接着，遍历这些调用链中连续调用的工具，将其标记为时序依赖。这种依赖通常用于捕获工具在真实调用路径中的关系，反映调用流程的顺序逻辑。例如，旅行工具链中“酒店搜索”紧接着“酒店评论查询”，这反映了用户实际使用时的时序逻辑，也反映了两者之间的关系。
 
 抽取后的时序依赖关系记录起点工具、终点工具、依赖类型（标记为“时序依赖”）以及描述字段。时序依赖的记录不仅有助于绘制工具调用路径，还为分析流程优化提供依据。
 
 \subsubsection{基于大语言模型的资源依赖抽取}
 
-在资源依赖关系的构建中，规则匹配与大语言模型（LLM）结合的方式被应用。首先，通过规则匹配提取工具的输入参数和输出字段，将字段名和类别进行对比，初步判断是否存在资源依赖。例如，“酒店评论查询”工具需要“酒店ID”作为输入，如果“酒店ID”是由“酒店搜索”工具提供的输出，则可以标记为强依赖关系。规则匹配能够高效处理结构化和模式化的依赖，但在复杂场景下可能有所不足。
+除了通过代码规则抽取工具之间的时序关系，我们还需要对工具之间的资源依赖关系进行分析。
+首先，我们尝试了一种基于规则匹配的方案，即通过对工具 API 的输入参数和输出字段进行名称和类别的比对来识别潜在的依赖关系。
+这种方法的实现逻辑较为简单直观，对结构化和模式化的依赖关系具有较好的识别能力。
+然而，在实际实验中，我们发现该方案存在两个主要问题：
 
-对于规则匹配识别出的潜在依赖关系，大语言模型进一步进行验证和分类。通过将两个工具的API文档（包括功能描述、输入和输出定义等）传递给模型，询问是否存在依赖关系，并让模型判断依赖关系的类型（强依赖或弱依赖）及其依赖字段。例如，大语言模型可能识别“根据经纬度查询天气”工具对“城市经纬度搜索”工具的弱依赖关系，说明输入经纬度可以通过其他手段获取但更倾向于使用特定工具。识别完成后，依赖关系被整理为规范化的数据格式，方便导入图谱中。
+\begin{itemize}
+    \item 参数名称不一致导致的依赖关系遗漏。同一参数可能在不同工具中使用不同的名称，例如“酒店ID”在某些工具中可能表示为不同的字段。这种不一致容易导致依赖关系的遗漏，限制了工具知识图谱的表达能力。
+    \item 不同语义的同名参数引入的噪声。同名参数在不同工具中可能具有不同的语义。例如，\texttt{ID} 在“酒店搜索”工具中表示“酒店的唯一标识符”，而在“航班搜索”工具中可能指“航班班次编号”。这种情况下，会误判依赖关系，从而引入噪声。
+\end{itemize}
+
+为了解决上述问题，我们引入了大语言模型对 API 之间的依赖关系进行分析和生成。
+通过将API文档信息融入到LLM的提示词中，并提供相应抽取格式的样本案例，利用 LLM 强大的语义解析能力，我们能够直接分析工具信息并从语义层面识别工具间的关系。
+
+在具体实现中，我们为了能够完全覆盖工具之间的依赖关系，我们将所有工具两两进行配对，将
+工具组名称、工具名称、入参列表、响应体结构等都放在LLM的提示词中，并要求LLM分析
+是否存在资源上的依赖关系。若存在资源依赖关系，则输出对应的参数名称并简单描述该依赖关系。
+
+% Set Colors
+\definecolor{bgcolor}{RGB}{240,240,240} % Background color
+\definecolor{titlecolor}{RGB}{20,20,20} % Title background color
+
+\begin{center}
+    % Create background with tcolorbox
+    \begin{tcolorbox}[colback=bgcolor, colframe=black, width=0.95\textwidth, boxrule=0.5mm, 
+    coltitle=white, colbacktitle=titlecolor, title=Task: Analyze API Dependencies]
+    
+    % Centered content
+    
+    \textbf{<Task>} Analyze the parameter dependencies between two APIs based on their names and descriptions, and output the result in JSON format.
+    
+    \textbf{<Instructions>}
+    1. Identify possible parameter dependencies (e.g., the output of the first tool is the input of the second tool).  
+       - If a parameter is unique or organization-specific (e.g., \texttt{product\_id} used internally by Amazon), classify it as a \textbf{strong relationship}.  
+       - If a parameter is generic or commonly used (e.g., \texttt{time}, \texttt{longitude}), classify it as a \textbf{weak relationship}.  
+    2. Provide a description of the dependency: A concise explanation of what the parameter represents.  
+    3. Output the result in JSON format, ensuring it is structured and logically consistent.  
+    
+    \vspace{0.5em}
+    
+    \textbf{<API Information>} 
+
+    API1 documentation: \dots
+
+    API2 documentation: \dots 
+    
+    \vspace{0.5em}
+    
+    \textbf{<Example Output>}  
+    
+    \begin{verbatim}
+    {
+      "dependencies": [
+        {
+          "name_in_first_api": "q",
+          "name_in_second_api": "query",
+          "dependency_description": "..."
+        }
+      ]
+    }
+    \end{verbatim}
+    
+    \end{tcolorbox}
+    \end{center}
+
+% 引入LLM的方案具能够高效处理参数名称不一致的问题，通过基于上下文语义理解字段的实际含义，避免因名称匹配带来的依赖关系遗漏。同时，LLM还能准确区分参数的语义差异，对于同名字段，可结合工具功能和字段定义的语义信息，明确不同工具中参数的具体含义，从而有效减少噪声。此外，该方案简化了流程并提高了准确性，借助LLM直接生成依赖关系，无需依赖复杂的规则匹配流程，在大规模工具图谱生成中展现出更高的适用性。
+
+图\ref{fig:ch3-knowledge-graph-model}为该工具图谱的概念模型与实例模型示意图。
+
+\begin{figure}[H]
+    \vspace{1em}
+    \centering
+    \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
+    \includegraphics[height=10cm]{../assets/概念模型和实例模型.png}
+    \bicaption{图谱概念模型和实例模型}{Ontology model and Instance Model of Knowledge Graph}
+    \label{fig:ch3-knowledge-graph-model}
+\end{figure}
+
+总体而言，引入 LLM 的方案，不仅弥补了基于规则匹配的局限性，还通过语义理解能力显著提升了依赖关系识别的全面性和准确性，为资源图谱的构建提供了更加可靠的基础。
 
 \subsubsection{图谱数据导入}
 
@@ -279,7 +369,14 @@ ToolBench包含多种类型的数据，包括每个工具集的详细描述信�
 
 关系数据的导入使用工具节点的标识字段建立工具之间的依赖关系，包括时序依赖、强资源依赖和弱资源依赖。依赖关系被标注有明确的类型和描述字段，便于在查询中准确反映其性质。导入完成后，可以通过可视化工具验证图谱中的节点和关系，确保结构的准确性和逻辑性。
 
-【可视化的一个图，Neo4j的截图】
+\begin{figure}[H]
+    \vspace{1em}
+    \centering
+    \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
+    \includegraphics[height=8cm]{../assets/Neo4j工具图1126-150nodes.png}
+    \bicaption{工具图谱}{Tool Knowledge Graph}
+    \label{fig:ch3-neo4j}
+\end{figure}
 
 % \begin{itemize}
 %   \item 时序依赖：时序依赖指的是在历史工具调用路径中被连续调用的两个工具。
@@ -444,7 +541,7 @@ ToolBench包含多种类型的数据，包括每个工具集的详细描述信�
 % “见图~\ref{fig:energy-distrib}”、“如图~\ref{fig:energy-distrib} 所示”等。该页空
 % 白不够排写该图整体时，则可将其后文字部分提前排写，将图移到次页。
 
-% \begin{figure}[!htp]
+% \begin{figure}[H]
 %   \centering
 %   \begin{tikzpicture}
 %     \begin{axis}[
@@ -480,7 +577,7 @@ ToolBench包含多种类型的数据，包括每个工具集的详细描述信�
 % 简单插入多个图形的例子如图~\ref{fig:SRR} 所示。这两个水平并列放置的子图共用一个
 % 图形计数器，没有各自的子图题。
 
-% \begin{figure}[!htp]
+% \begin{figure}[H]
 %   \centering
 %   \includegraphics[height=2cm]{../assets/1.png}
 %   \hspace{1cm}
@@ -492,7 +589,7 @@ ToolBench包含多种类型的数据，包括每个工具集的详细描述信�
 % 如果多个图形相互独立，并不共用一个图形计数器，那么用 \texttt{minipage} 或者
 % \texttt{parbox} 就可以，如图~\ref{fig:parallel1} 与图~\ref{fig:parallel2}。
 
-% \begin{figure}[!htp]
+% \begin{figure}[H]
 %   \centering
 %   \begin{minipage}{0.48\textwidth}
 %     \centering
@@ -518,7 +615,7 @@ ToolBench包含多种类型的数据，包括每个工具集的详细描述信�
 % \pkg{subcaption} 宏包也提供了 \pkg{subfigure} 和 \pkg{subtable} 环境，如
 % 图~\ref{fig:subfigure}。
 
-% \begin{figure}[!htp]
+% \begin{figure}[H]
 %   \centering
 %   \begin{subfigure}{0.3\textwidth}
 %     \centering
@@ -592,7 +689,7 @@ ToolBench包含多种类型的数据，包括每个工具集的详细描述信�
 % 我们经常会在表格下方标注数据来源，或者对表格里面的条目进行解释。可以用
 % \pkg{threeparttable} 实现带有脚注的表格，如表~\ref{tab:footnote}。
 
-% \begin{table}[!htpb]
+% \begin{table}[Hb]
 %   \bicaption{一个带有脚注的表格的例子}{A Table with footnotes}
 %   \label{tab:footnote}
 %   \centering
