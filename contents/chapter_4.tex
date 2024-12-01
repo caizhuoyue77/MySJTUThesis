@@ -1,13 +1,16 @@
-\chapter{基于工具图谱与深度优先遍历的工具编排与调用方法}
+\chapter{基于工具图谱与多智能体的工具编排与调用方法}
 
 \section{引言}
 \label{sec:intro}
 
-\indent 在第三章中，我们介绍了基于工具调用路径构建的工具知识图谱，包括有对调用路径数据的清洗、工具图谱的构建方法、工具节点召回模型训练等部分。
-尽管工具图谱能够表示大量的工具调用路径，
-但是仅依赖图上搜到的路径不具有灵活性，图上固有的路径不能满足变化的用户需求。
-同时，工具也具有生命周期和动态性，会有新建的工具或者废弃的工具，图谱上的节点也会随之变化，
-因此需要一种动态的工具选择方法。
+\indent 在第三章中，我们介绍了工具知识图谱的构建方法和实现，包括数据清洗、概念模型的构建、知识抽取等部分。
+工具图谱能对工具之间的依赖关系进行表示和存储，
+通过在工具知识图谱上搜索工具路径能够得到调用路径。
+但是图上固有的工具路径有时不能满足变化的用户需求。
+同时，
+从用户输入的自然语言需求到根据工具进行回复的过程中，有许多步骤都需要大语言模型参与。
+% 工具也具有生命周期和动态性，会有新建的工具或者废弃的工具，图谱上的节点也会随之变化，
+% 因此需要一种动态的工具选择方法。
 使用大语言模型进行选择和编排能够提升系统的动态性和灵活性，但仅依赖大语言模型的语义分析能力难以处理工具之间的复杂依赖关系。
 
 因此，我们提出了一个在工具图谱上动态遍历的算法，通过大语言模型智能体在图上动态选择节点。本章集中介绍图谱遍历和工具路径选择的部分，即如何根据用户需求在大型工具图谱上进行高效的搜索和选择。
@@ -32,7 +35,7 @@
   \centering
   \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
   \includegraphics[height=8cm]{../assets/ch4-整体框架图-3.pdf}
-  \bicaption{整体框架}{Overview of the Dynamic Tool Selection Framework}
+  \bicaption{整体框架}{Overview of the Framework}
   \label{fig:ch4-framework}
 \end{figure}
 
@@ -41,12 +44,11 @@
 \begin{enumerate}
   \item \textbf{任务分解模块}：任务分解模块通过对用户模糊或复杂需求进行解析，将其拆解为明确且独立的子任务，使复杂问题变得更易执行和解决。模块利用语义分析，根据任务的逻辑结构和类别对需求进行分解，既提升了任务处理的效率，也增强了系统的响应准确性。同时，通过识别任务间的依赖关系，确保了整体任务流程的有序性和可执行性。
   \item \textbf{工具选择与编排模块}：该部分包括基于深度优先遍历的动态工具搜索算法、自我反思机制和记忆模块。
-  本质上来说，该算法就是在图上进行深度优先遍历，我们将图上的节点的权值、节点的邻居点的边权等信息，以及节点工具的描述信息等全部提供给大语言模型，让模型在图上动态选择节点。
+  本质上来说，该算法就是在图上进行深度优先遍历，我们将图上的工具的名称、描述还有与其他工具的依赖信息全部提供给大语言模型，让模型在图上动态选择节点。
   在工具路径选择的过程中，若遇到了路径信息，我们将会进调用“自我反思机制”，即对路径上遇到的错误进行分析并基于此错误分析内容重新
   进行路径选择。模型可以选择回溯到某个中间过程，或者是从头开始寻路。
   在大语言模型智能体不断寻路的过程中，我们会维护一个“短期记忆”，即对整体寻路流程的记录。
   为了利用历史经验知识，我们添加了“长期记忆模块”，即我们会搜索类似任务的历史工具调用路径放在提示词辅助大语言模型的规划。
-  自我反思机制能够通过格式化的反思提升系统的准确性。
   \item \textbf{工具调用与总结模块}：在得到了整体的路径后，任务执行模块负责调用工具，并将结果进行汇总，最终输出结果。
   其中涉及到了工具参数配置、工具响应压缩模块。工具参数配置模块直接将工具的说明信息和所需参数信息提供给模型，让模型提供合适参数并进行校验。
   工具响应压缩模块则负责对工具的响应结果进行压缩，以减少响应时间，提升交互效率。我们将任务总结智能体作为一种
@@ -74,13 +76,18 @@
 在这种情况下，大语言模型通过对用户输入的语义分析，将任务按照逻辑和类别进行分解。
 逻辑上分解有利于明确每个任务的目标，没有依赖关系的任务可以并行执行，能够有效提高任务的效率和正确率。
 按照类别来分解能够缩小在工具池中的搜索范围，提高搜索效率和准确性。
-其提示词如下所示：
+
+任务分解模块的提示词如下\ref{tab:task-decomposition}所示：
 
 % Set Colors
 \definecolor{bgcolor}{RGB}{240,240,240} % Background color
 \definecolor{titlecolor}{RGB}{20,20,20} % Title background color
 
-\begin{center}
+\begin{table}[htbp]
+  \centering
+  \bicaption{任务分解模块prompt构建示例}{Example Prompt for Task Decomposition Module} % 表头
+  \label{tab:task-decomposition} % 表格引用标签
+
 % Create background with tcolorbox
 \begin{tcolorbox}[colback=bgcolor, colframe=black, width=0.95\textwidth, boxrule=0.5mm, 
 coltitle=white, colbacktitle=titlecolor, title=Task Decomposition and Response Planning with GPT-4]
@@ -114,7 +121,8 @@ Expected Output:
 \}
 }
 \end{tcolorbox}
-\end{center}
+\end{table}
+
 
 通过以上的大语言模型提示词工程，我们可以让大语言模型输出JSON格式的任务执行流程，并且根据任务之间的依赖关系对任务进行排序。
 
@@ -128,6 +136,7 @@ Expected Output:
   \bicaption{任务分解模块}{Task Decomposition Module}
   \label{fig:ch4-decomposition}
 \end{figure}
+
 
 总的来说，基于大语言模型的任务分解模块通过分解复杂任务、改写用户需求，并显式表示子任务之间的依赖，使得该系统在执行复杂任务时更加灵活、精准且高效。
 
@@ -144,16 +153,16 @@ Expected Output:
 最后，在该算法能够通过“自我反思机制”来对路径进行判断和错误诊断，
 这一机制进一步提升了路径选择的准确率。
 
-\subsubsection{基于深度优先遍历的工具选择算法}
+\subsubsection{基于工具图谱与智能体的工具选择方法}
 
-图~\ref{fig:ch4-dfs}为本文提出的工具选择算法的效果展示。
+图~\ref{fig:ch4-dfs}为本文提出的工具选择的路径编排方法的效果展示。
 
 \begin{figure}[!htp]
   \vspace{1em}
   \centering
   \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
   \includegraphics[height=8cm]{../assets/ch4-工具选择器.pdf}
-  \bicaption{基于深度优先遍历的工具选择算法}{Dynamic Tool Selection based on DFS}
+  \bicaption{基于工具图谱与智能体的工具选择方法}{Dynamic Tool Selection based on Agents and Tool Knowledge Graphs}
   \label{fig:ch4-dfs}
 \end{figure}
 
@@ -168,20 +177,18 @@ Expected Output:
 若取并集之后的工具节点仍过多，我们将会计算每个工具与子任务描述的相似度，并进行排序，选择前K个工具节点提供给大语言模型。
 我们设计了简单实验来选择这个K值以及选取前K个的有效性，具体见第五章的实验部分。
 
-对于搜索得到的邻居节点，我们在提示词中对不同类别的依赖关系设置了不同程度的重要性，引导大语言模型选择合适的工具节点来完成子任务。
+对于搜索得到的邻居节点，我们在提示词中对不同类别的依赖关系设置了不同程度的重要性，引导大语言模型选择合适的工具节点来完成子任务。依赖关系的优先级为：强依赖 > 弱依赖 > 时序依赖。
 
-在处理具有前序任务的工具节点时，我们通过寻找这些工具节点的邻居节点生成候选工具集合。对于多个前序任务节点，其邻居节点取并集，形成综合依赖关系的候选工具集供大语言模型（LLM）使用。
-
-为了提高工具选择的有效性，我们依据任务分解器的“类别”字段筛选相关工具节点，过滤掉与任务无关的噪声节点。如果候选工具仍然过多，则计算工具与子任务描述的语义相似度，并选择前 $K$ 个最相关的工具作为候选。
-
-提示词中引入了依赖关系优先级规则，以引导大语言模型选择合适工具完成子任务。依赖关系的优先级为：强依赖 > 弱依赖 > 时序依赖。
-
-以下为提示词示例：
+工具选择器的提示词如下\ref{tab:tool-selection}所示：
 
 \definecolor{bgcolor}{RGB}{240,240,240} % 背景颜色
 \definecolor{titlecolor}{RGB}{20,20,20} % 标题背景颜色
 
-\begin{center}
+\begin{table}[htbp]
+  \centering
+  \bicaption{工具选择模块prompt构建示例}{Example Prompt for Tool Selection Module} % 表头
+  \label{tab:tool-selection} % 表格引用标签
+  
 \begin{tcolorbox}[colback=bgcolor, colframe=black, width=0.95\textwidth, boxrule=0.5mm, coltitle=white, colbacktitle=titlecolor, title=Example Prompt for Tool Selection]
 
 \textbf{<Task>}
@@ -200,7 +207,7 @@ Calculate the time difference between the current time and a target time.
 \end{enumerate}
 
 \end{tcolorbox}
-\end{center}
+\end{table}
 
 通过该算法可以迭代得到子任务图上每个子任务所需要调用的工具节点，并且形成一个工具之间的有向无环图，为后续调用提供调用顺序和依赖关系。
 
@@ -209,8 +216,9 @@ Calculate the time difference between the current time and a target time.
 在上述算法中，初始工具集以及后续候选前K个工具集都是根据工具和子任务描述的语义相似度来选择的，将
 子任务描述和工具描述转为向量的嵌入模型对选择正确工具有很大的影响。
 
-由于工具图中包含大量的工具，无法让大语言模型浏览所有工具信息并选择最合适的。
-因此在这里我们设计了基于语义相似度的工具召回器，能够根据用户的需求语句召回一组在语义上最相似的工具作为初始工具的候选集。
+% 由于工具图中包含大量的工具，无法让大语言模型浏览所有工具信息并选择最合适的。
+不管是在选择初始工具集合时候的召回，还是对后续工具节点的相似度排序，将工具描述文本转为嵌入向量的模型都对工具选择部分的准确性有
+较高的要求。因此在这里我们设计了基于语义相似度的工具召回器，能够根据用户的需求语句召回一组在语义上最相似的工具，并对召回的工具形成合理的排序。
 
 通常工具召回是通过向量模型和相似度算法来进行的，具体而言，我们将子任务描述和每个工具的信息都转化为向量表示，并通过计算查询向量与工具向量之间的相似度来检索相关工具。这个过程首先使用预训练的语言模型将工具的文本描述转化为向量，这些向量能够捕捉文本的语义信息。接着，通过计算查询向量与工具向量之间的相似度，常用的相似度度量包括余弦相似度和欧氏距离，系统会召回与查询最相关的若干个工具，通常会设置一个阈值，以确保返回的结果在一定的相似度范围内。随后，对召回的工具进行排序，通常按照相似度从高到低排列，以便优先展示最相关的结果。在某些情况下，可以结合额外的规则或业务逻辑进一步优化结果，例如排除某些不相关的工具或添加领域特定的过滤条件。
 
@@ -241,7 +249,7 @@ Calculate the time difference between the current time and a target time.
   \centering
   \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
   \includegraphics[height=7cm]{../assets/ch3-负样本构造.pdf}
-  \bicaption{负样本构造的两种方式}{Negative Sample Generation}
+  \bicaption{负样本构造的两种方式}{Two Ways of Generating Negative Samples}
   \label{fig:negative-sample-generation}
 \end{figure}
 
@@ -370,7 +378,7 @@ Calculate the time difference between the current time and a target time.
   \centering
   \setlength{\abovecaptionskip}{10pt}
   \includegraphics[height=8cm]{../assets/ch4-并行调用模块.pdf}
-  \caption{工具并行调用逻辑}
+  \bicaption{工具并行调用逻辑}{Example for Tool Parallel Invocation}
   \label{fig:parallel-invocation-logic}
 \end{figure}
 
@@ -450,7 +458,7 @@ T_{\text{并行}} = 4 \cdot 1 = 4 \, \text{秒}
   \centering
   \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
   \includegraphics[height=7cm]{../assets/ch4-工具调用模块.pdf}
-  \bicaption{响应压缩模块}{Compression of API responses}
+  \bicaption{响应压缩模块}{Responses Compression Module}
   \label{fig:ch4-compression}
 \end{figure}
 
@@ -471,16 +479,20 @@ T_{\text{并行}} = 4 \cdot 1 = 4 \, \text{秒}
 在所有的工具都调用完毕之后，我们通过调用工具总结器对工具的调用结果进行总结，以生成符合用户需求的答案。
 工具总结器并不会获取所有工具的响应，而是会根据在子任务分解时的依赖关系选择部分工具的响应结果来进行总结，即仅选择与回答有直接关联的工具响应。
 
-
 这部分方法的设计类似于传统的检索增强生成（Retrieval-Augmented Generation, RAG）。在这里，通过工具调用得到的结果可以看作是类似于检索阶段的信息，而基于这些结果生成对用户需求的回答则对应于生成阶段。在这一框架中，核心目标包括：1）减少幻觉现象，确保生成的内容基于真实信息；2）确保回答的稳定性，即相同的输入能够生成一致的答案；3）提升回答的相关性，降低无关信息（噪声）的干扰。
 
 为实现上述目标，我们设计了一个用于工具总结模块的提示词模板，通过提示词工程引导模型生成回答。如下所示，该模板为模型提供了一种结构化的思考和表达方式，使得生成的内容更加稳定、有逻辑，并能够准确满足用户的需求，从而有效提升生成质量。
+
+工具总结部分的提示词设计如下\ref{tab:tool-summary}所示:
 
 % Set Colors
 \definecolor{bgcolor}{RGB}{240,240,240} % Background color
 \definecolor{titlecolor}{RGB}{20,20,20} % Title background color
 
-\begin{center}
+\begin{table}[htbp]
+  \centering
+  \caption{工具响应总结模块prompt构建示例}{Prompt Example for Response Generation Module} % 表头
+  \label{tab:tool-summary} % 表格引用标签
 % Create background with tcolorbox
 \begin{tcolorbox}[colback=bgcolor, colframe=black, width=0.95\textwidth, boxrule=0.5mm, 
 coltitle=white, colbacktitle=titlecolor, title=An Example for Response Generation with GPT-4]
@@ -526,9 +538,9 @@ What's the most popular travel destination in Korea And what's the weather like 
 \}
 
 \end{tcolorbox}
-\end{center}
+\end{table}
 
 \section{本章小结}
 \label{sec:summary_chap4}
 
-本章提出了一种基于工具图谱和深度优先遍历的动态工具编排与调用方法，通过任务分解模块将复杂需求拆解为子任务，并利用深度优先遍历算法动态规划工具调用路径，以应对工具动态性和复杂依赖关系。结合记忆框架，有效利用历史经验优化路径选择效率，同时通过语义相似度优化的工具召回器提升工具选择的准确性。工具调用模块支持并行处理和响应压缩，减少大语言模型的上下文压力，提高执行效率。最终，通过工具总结模块对调用结果进行整合与回答生成，确保输出的准确性和相关性。本方法有效结合了工具图谱的结构化信息与大语言模型的动态决策能力，为复杂任务的灵活、高效、精准解决提供了系统化的支持。
+本章提出了一种基于工具图谱和多智能体的工具编排与调用方法，通过任务分解模块将复杂需求拆解为子任务，并利用深度优先遍历算法动态规划工具调用路径，以应对工具动态性和复杂依赖关系。结合记忆框架，有效利用历史经验优化路径选择效率，同时通过语义相似度优化的工具召回器提升工具选择的准确性。工具调用模块支持并行处理和响应压缩，减少大语言模型的上下文压力，提高执行效率。最终，通过工具总结模块对调用结果进行整合与回答生成，确保输出的准确性和相关性。本方法有效结合了工具图谱的结构化信息与大语言模型的动态决策能力，为复杂任务的灵活、高效、精准解决提供了系统化的支持。

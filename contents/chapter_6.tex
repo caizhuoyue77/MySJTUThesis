@@ -48,10 +48,9 @@
     \centering
     \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
     \includegraphics[height=5cm]{../assets/ch5-交互设计图.pdf}
-    \bicaption{系统交互图}{System Usecase Diagram}
+    \bicaption{系统交互图}{System Interaction Diagram}
     \label{fig:interaction}
   \end{figure}
-
 
 本系统主要有以下三个部分，前端交互界面、系统后端和其他服务模块，集成了不同模型的调用接口以及知识图谱查询功能，为用户提供了低门槛、用户友好的界面，支持用户通过自然语言的方式进行交互和提问。整体交互流程如图6.2所示：
 
@@ -60,7 +59,6 @@
 	3.	其他服务模块：其他服务模块包括Neo4j图数据库、Qdrant向量数据库、向量模型推理服务和LLM（大语言模型）推理服务。这些模块分别用于存储和查询图数据库、管理和检索向量化数据、支持基于向量相似度的搜索需求，以及提供大语言模型的对话和推理功能。系统后端根据用户需求对这些服务进行编排调用，确保用户问题得到高效而准确的解答。
 
 通过以上三部分的协同工作，系统能够为用户提供全面的API编排调用智能问答、历史调用模板查询和自定义工具配置等服务，满足用户的需求，并提供了易用、易扩展的系统和良好的交互体验。
-
 
 \section{系统架构设计}
 
@@ -172,14 +170,13 @@ API调用问答模块通过流式输出和多轮交互，提升用户体验。�
   \centering
   \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
   \includegraphics[height=6cm]{../assets/ch5-系统实现图.pdf}
-  \bicaption{系统技术实现图}{System Implementation Diagram}
+  \bicaption{系统技术实现图}{System Technical Implementation Diagram}
   \label{fig:ch6-implementation}
 \end{figure}
 
 在本地大语言模型部署时，我们选择vLLM来部署Qwen模型，vLLM能提供业内顶尖的推理效率、高效的注意力管理机制和对模型量化的支持，还能够将模型部署为OpenAI API格式，提供了方便的交互。
 我们在该系统采用了前后端分离的方式，选择了FastAPI作为后端框架，将除模型推理服务外的服务都以API接口的形式提供，前后端通过HTTP进行通讯。
 在前端页面部分，我们选用了目前大语言模型有关应用有关最流行的前端框架之一———Streamlit前端框架来实现。
-
 
 下面我们将会根据一个具体的使用样例，对该系统的主要页面进行展示。
 
@@ -191,7 +188,7 @@ API调用问答模块通过流式输出和多轮交互，提升用户体验。�
   \centering
   \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
   \includegraphics[height=8cm]{../assets/ch6-1登陆.png}
-  \bicaption{系统登陆页}{System Login Page}
+  \bicaption{系统登录页}{System Login Page}
   \label{fig:ch6-login}
 \end{figure}
 
@@ -206,7 +203,7 @@ API调用问答模块通过流式输出和多轮交互，提升用户体验。�
   \centering
   \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
   \includegraphics[height=8cm]{../assets/ch6-2简单问题回答.png}
-  \bicaption{系统回答页}{System Response Page}
+  \bicaption{系统智能问答页}{System Response Page}
   \label{fig:ch6-simple-question}
 \end{figure}
 
@@ -218,7 +215,7 @@ API调用问答模块通过流式输出和多轮交互，提升用户体验。�
   \centering
   \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
   \includegraphics[height=8cm]{../assets/ch6-所有API展示.png}
-  \bicaption{工具浏览页}{Tools Display Page}
+  \bicaption{工具信息浏览页}{Tools Display Page}
   \label{fig:ch6-all-tools}
 \end{figure}
 
@@ -230,7 +227,7 @@ API调用问答模块通过流式输出和多轮交互，提升用户体验。�
   \centering
   \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
   \includegraphics[height=8cm]{../assets/ch6-工具图谱可视化.png}
-  \bicaption{工具知识图谱可视化}{Tool Knowledge Graph Visualization}
+  \bicaption{工具知识图谱可视化页}{Tool Graph Visualization Page}
   \label{fig:ch6-tool-kg}
 \end{figure}
 
@@ -241,7 +238,7 @@ API调用问答模块通过流式输出和多轮交互，提升用户体验。�
   \centering
   \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
   \includegraphics[height=8cm]{../assets/ch6-添加自定义API.png}
-  \bicaption{添加自定义API}{Add Tool Page}
+  \bicaption{添加自定义API页}{Add Tool Page}
   \label{fig:ch6-add-tool}
 \end{figure}
 

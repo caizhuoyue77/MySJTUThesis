@@ -7,7 +7,7 @@
 % 第一个表格
 \begin{table}[h]
   \centering
-  \caption{Configuration of Environment}
+  \bicaption{实验环境配置}{Configuration of Environment}
   \begin{tabular}{l|l}
   \toprule
   \textbf{Attribute Name} & \textbf{Attribute Value} \\ \midrule
@@ -27,7 +27,7 @@
 % 第二个表格
 \begin{table}[h]
   \centering
-  \caption{Configuration of Library Environment}
+  \bicaption{Python环境依赖配置}{Configuration of Library Environment}
   \begin{tabular}{l|l}
   \toprule
   \textbf{Library Name}    & \textbf{Version} \\ \midrule
@@ -43,9 +43,7 @@
   \label{tab:library_environment}
 \end{table}
 
-
 \section{API召回向量模型实验与评估}
-
 
 \subsection{数据集介绍}
 
@@ -106,7 +104,7 @@ NDCG（Normalized Discounted Cumulative Gain）用于评价排序效果，通过
 
 \begin{table}[!ht]
   \centering
-  \caption{API工具召回实验结果}
+  \bicaption{API工具召回实验结果}{Experiment Results for ToolRetriever}
   \label{tab:comparison}
   \begin{tabular}{l|ccc|ccc|ccc}
     \toprule
@@ -209,7 +207,7 @@ NDCG（Normalized Discounted Cumulative Gain）用于评价排序效果，通过
 
 \begin{table}[h]
   \centering
-  \caption{数据集评估结果对比（评分范围：1-5 分）}
+  \bicaption{数据集评估结果对比}{Data Evaluation}
   \label{tab:comparison}
   \begin{tabular}{l|c|c|c|c}
   \toprule
@@ -247,7 +245,7 @@ NDCG（Normalized Discounted Cumulative Gain）用于评价排序效果，通过
 
 \begin{table}[h]
   \centering
-  \caption{Consistency between Evaluator and Human Annotator}
+  \bicaption{人工标记与LLM评估的一致性结果}{Consistency between Evaluator and Human Annotator}
   \label{tab:consistency}
   \begin{tabular}{l|c|c}
   \toprule
@@ -298,7 +296,7 @@ NDCG（Normalized Discounted Cumulative Gain）用于评价排序效果，通过
            & Ours+ToolRetriever & 52.5 & 50.2 & 48.6 & 46.3 & 50.6 & 48.2 \\
   \bottomrule
   \end{tabular}
-  \caption{Results for I1 and I2 with Pass and Win metrics for different methods}
+  \bicaption{不同维度和模型的实验结果}{Results for Pass and Win Metrics for Different Methods}
   \label{tab:simplified_pass_win}
 \end{table}
 
