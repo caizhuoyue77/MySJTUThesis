@@ -225,20 +225,34 @@ NDCG（Normalized Discounted Cumulative Gain）用于评价排序效果，通过
 由于工具的多样性，对于同一个用户需求可以有多种工具调用路径。因此，我们无法事先对每个测试的输入标注单一的解决路径标准答案。由于人工评价较为费时费力，本文基于\cite{Tang2023}中的评估器构建了类似的评估体系，包含以下两个指标。我们的评估器使用的是目前能力最强的模型之一GPT-4，温度系数设置为0。
 
 \begin{itemize}
-    \item \textbf{通过率（Pass Rate）} \\
-    通过率是计算在有限的工具执行步骤内完成了需求的比例。该指标衡量了系统工具调用最基本的执行能力。通过率的公式如下：
+  \item \textbf{成功率（Pass Rate, PR）} \\
+  成功率衡量系统是否能够满足用户的需求。若模型成功完成任务，即完成了用户的需求，则该任务被视为成功。公式如下：
 
-    \begin{equation}
-        PR = \frac{ \#(\text{Solved}) }{ \#(\text{Solved}) + \#(\text{Unsolved}) }.
-    \end{equation}
+  \begin{equation}
+      PR = \frac{\#(\text{Pass})}{\#(\text{Total Instructions})}.
+  \end{equation}
 
-    \item \textbf{胜率（Win Rate）} \\
-    胜率是评价两条针对同一需求生成的路径的偏好。在模型判断胜率的评估器的提示词中，我们预先定义了一组标准，其中包括：探索性、真实性、工具个数。胜率的公式如下：
+  \item \textbf{胜率（Win Rate, WR）} \\
+  胜率用于评估两条针对同一需求生成的路径的优劣。通过评估器对两条路径的偏好，判断哪一条路径更优。公式如下：
 
-    \begin{equation}
-        WR = \frac{ \#(\text{Won}) }{ \#(\text{Won}) + \#(\text{Lost}) + \#(\text{Tie}) }.
-    \end{equation}
+  \begin{equation}
+      WR = \frac{\#(\text{Won})}{\#(\text{Won}) + \#(\text{Lost}) + \#(\text{Tie})}.
+  \end{equation}
 
+  \item \textbf{Token消耗量（Token Consumption, TC）} \\
+  Token消耗量衡量模型在整个任务执行过程中消耗的总Token数。包括从任务分解到回复生成的每个步骤所需的Token总和。
+
+  \item \textbf{总消耗时间（Total Execution Time, TET）} \\
+  总消耗时间衡量模型从任务开始到任务完成的总时间。包括任务分解、参数提取、API调用（含API响应等待时间）以及结果生成的总耗时。
+
+  \item \textbf{API路径长度（Path Length, PL）} \\
+  API路径长度衡量执行任务所需的总API调用数。公式如下：
+
+  \begin{equation}
+      PL = \sum_{i=1}^{\#(\text{Instructions})} L_{\text{real}, i},
+  \end{equation}
+
+  其中 \(L_{\text{real}, i}\) 是第 \(i\) 条指令实际调用的API数量。
 \end{itemize}
 
 同时，为了验证评估器与人类标注者的标注一致性，我们人工标注了100条通过率和100条胜率的数据，与GPT-4的标注结果进行了对比。
@@ -342,33 +356,38 @@ NDCG（Normalized Discounted Cumulative Gain）用于评价排序效果，通过
 
 \end{enumerate}
 
-% \section{消融实验}
+\section{消融实验}
 
-% \subsection{实验设置}
+\subsection{实验设置}
 
-% 为了验证工具图谱在该方案中的有效性，我们设计了一系列消融实验，重点分析工具图谱的各个组成部分对系统性能的影响。具体而言，我们分别移除了工具图谱中的边权和点权值，以观察其对模型性能的作用。同时，本实验基于上一节中筛选得到的测试数据进行评估，确保实验具有代表性和严谨性。
+为了验证各个模块在本文方案中的有效性，我们设计了一系列消融实验，重点分析
+不同的智能体对整体系统性能的影响。
+本实验的数据集采用与前文相同的数据，可以直接用于对比去除不同模块后
+不同指标的变化，确保实验具有代表性和严谨性。
 
-% \subsection{实验结果}
+\subsection{实验结果}
 
-% 实验结果如表 \ref{tab:ablation} 所示。
+我们分别去除了任务分解器、响应压缩器模块和并行调用模块，表 \ref{tab:ablation} 为实验结果。
 
-% \begin{table}[h]
-%   \centering
-%   \caption{Ablation Study Results of ToolGraph}
-%   \begin{tabular}{l|c|c}
-%   \toprule
-%   \textbf{Experimental Setting}            & \textbf{Pass Rate} & \textbf{Win Rate} \\ \midrule
-%   Complete Model (with ToolGraph)          & \textbf{85.2\%}    & \textbf{81.4\%}   \\
-%   No ToolGraph                             & 74.8\%             & 69.2\%            \\
-%   ToolGraph without Edge Weights           & 78.3\%             & 72.5\%            \\
-%   ToolGraph without Node Weights           & 80.1\%             & 76.1\%            \\
-%   ToolGraph without Weights                & 76.9\%             & 71.0\%            \\ 
-%   \bottomrule
-%   \end{tabular}
-%   \label{tab:ablation}
-% \end{table}
+\begin{table}[h]
+  \centering
+  \caption{Ablation Study Results of ToolGraph}
+  \begin{tabular}{l|c|c}
+  \toprule
+  \textbf{Experimental Setting}            & \textbf{Pass Rate} & \textbf{Win Rate} \\ \midrule
+  Complete Model (with ToolGraph)          & \textbf{85.2\%}    & \textbf{81.4\%}   \\
+  No ToolGraph                             & 74.8\%             & 69.2\%            \\
+  ToolGraph without Edge Weights           & 78.3\%             & 72.5\%            \\
+  ToolGraph without Node Weights           & 80.1\%             & 76.1\%            \\
+  ToolGraph without Weights                & 76.9\%             & 71.0\%            \\ 
+  \bottomrule
+  \end{tabular}
+  \label{tab:ablation}
+\end{table}
 
-%   \subsection{实验分析}
+  \subsection{实验分析}
+
+  待补充。
 
 %   表 \ref{tab:ablation} 的实验结果清晰地展示了工具图谱及其组成部分对模型性能的影响，具体分析如下：
   
