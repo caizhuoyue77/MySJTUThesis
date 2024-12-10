@@ -16,14 +16,11 @@
 
 \section{整体流程}
 
-基于这一发现，本文从开源工具调用路径数据中进行筛选与清洗，通过制定两种策略——基于工具的筛选与基于调用路径的筛选，筛选出高质量的工具调用路径数据，作为知识图谱构建的基础数据源。
+基于这一发现，本文从开源工具调用路径数据中进行筛选与清洗，通过制定两种策略——基于工具的筛选与基于调用路径的筛选，筛选出高质量的工具调用路径数据，作为知识图谱构建的数据来源。
 
 在此基础上，我们设计了知识图谱的本体模型结构，对工具之间的依赖关系进行建模，定义了三种核心依赖关系，用于表达工具之间的依赖关系。
-
 随后，我们结合规则匹配和大语言模型的提示词设计，开发了一套自动化知识抽取流程，从工具描述文档和调用路径数据中构建工具知识图谱。
-
 通过上述流程获得的实例数据被导入到 Neo4j 数据库中。Neo4j的高效图数据存储和可视化功能，不仅能够直观展示图谱的结构，也为后续工具图谱的查询奠定了基础。
-
 最后，由于工具场景是复杂多变的，我们需要对工具图谱进行动态的更新，针对该问题本文提出了图谱更新方法，提供了高效的更新策略来保证图谱的实时性和有效性。
 
 \section{数据收集和清洗}
@@ -270,7 +267,7 @@ ToolBench的整体构造基于开放的API托管平台“RapidAPI Hub”，其AP
     \item 关系描述（Description）：工具B的输入可以由工具A提供，但也可以通过其他方式获取。
 \end{itemize}
 
-\subsection{实例模型构建}
+\subsection{基于规则和大语言模型的知识抽取}
 
 本节详细阐述工具知识图谱的构建过程，包括节点和依赖关系的抽取、存储，以及如何将数据导入Neo4j进行存储和查询。
 
@@ -357,15 +354,15 @@ Food & \texttt{api\_dcbd91ed...} & Worldwide Recipes & Get reviews & \texttt{47f
     \textbf{<Example Output>}  
     
     \begin{verbatim}
+{
+    "dependencies": [
     {
-      "dependencies": [
-        {
-          "name_in_first_api": "q",
-          "name_in_second_api": "query",
-          "dependency_description": "..."
-        }
-      ]
+        "name_in_first_api": "q",
+        "name_in_second_api": "query",
+        "dependency_description": "..."
     }
+    ]
+}
     \end{verbatim}
     
     \end{tcolorbox}
@@ -386,10 +383,6 @@ Food & \texttt{api\_dcbd91ed...} & Worldwide Recipes & Get reviews & \texttt{47f
 
 总体而言，引入 LLM 的方案，不仅弥补了基于规则匹配的局限性，还通过语义理解能力显著提升了依赖关系识别的全面性和准确性。
 
-% \subsubsection{工具图谱更新}
-
-
-
 \subsection{图谱数据导入}
 
 构建完成的工具知识图谱数据需要导入Neo4j图数据库，以支持高效存储和复杂查询。数据导入分为节点和关系两部分。首先，工具、工具组和工具类别被转化为图中的节点。它们分别通过名称、ID等标识字段建立类型，并与属性字段一一关联。
@@ -408,6 +401,109 @@ Food & \texttt{api\_dcbd91ed...} & Worldwide Recipes & Get reviews & \texttt{47f
     \bicaption{工具图谱}{Tool Knowledge Graph}
     \label{fig:ch3-neo4j}
 \end{figure}
+
+\subsection{工具图谱更新策略}
+
+工具知识图谱并非建立之后就一成不变，
+而是会随着工具的废弃和新增发生变化，
+例如工具/工具组的新增和删除。
+为了维护图谱的完整性和一致性，
+我们设计了一套工具知识图谱更新策略，确保新增工具/工具组能够正确融入现有图谱，同时有效移除无效或过时的工具/工具组。
+
+在删除工具组时，需要从图谱中移除工具组节点及其包含的所有工具节点，
+同时删除这些节点与其他节点的所有关联关系。
+对于单个工具的删除，则移除对应的工具节点以及该节点与其他工具节点或类别节点之间的关系，
+从而避免在图谱中留下无效的孤立边或节点。
+
+\begin{algorithm}[!hpt]
+
+    \bicaption{工具组与工具的删除逻辑伪代码}{Removing Tool Groups and Tools from the Knowledge Graph}
+    \label{alg:delete_tool_graph}
+    
+    \KwIn{工具图谱 \texttt{Graph}, 待删除的工具组或工具标识 \texttt{nodeID}}
+    \KwOut{更新后的工具图谱 \texttt{Graph}}
+
+    \BlankLine
+    \textbf{Function} \texttt{DeleteToolGroup}(\texttt{Graph}, \texttt{toolGroupID}):\\
+    \Indp
+        \texttt{tools} $\gets$ \texttt{Graph.getNodesByProperty}("group\_id", \texttt{toolGroupID})\;
+        \ForEach{\texttt{tool} $\in$ \texttt{tools}}{
+            \texttt{Graph.deleteNodeAndEdges}(\texttt{tool})\;
+        }
+        \texttt{Graph.deleteNodeAndEdges}(\texttt{toolGroupID})\;
+    \Indm
+    \BlankLine
+    
+    \textbf{Function} \texttt{DeleteTool}(\texttt{Graph}, \texttt{toolID}):\\
+    \Indp
+        \texttt{Graph.deleteNodeAndEdges}(\texttt{toolID})\;
+    \Indm
+    \BlankLine
+    
+    \textbf{Main Procedure}:\\
+    \Indp
+        \If{\texttt{nodeID} \text{ is a tool group ID}}{
+            \texttt{DeleteToolGroup}(\texttt{Graph}, \texttt{nodeID})\;
+        }
+        \ElseIf{\texttt{nodeID} \text{ is a tool ID}}{
+            \texttt{DeleteTool}(\texttt{Graph}, \texttt{nodeID})\;
+        }
+    \Indm
+    \end{algorithm}
+
+在添加新工具时，首先将新增工具的相关信息导入图谱。
+如果新增工具组尚未存在，则创建对应的工具组节点并将其信息导入，并将其与相关类别节点建立联系。
+随后，为每个新增工具节点生成实体，并将工具节点与其所属工具组节点关联，以反映图谱的分类结构。
+
+
+\begin{algorithm}[!hpt]
+\bicaption{工具组与工具的添加逻辑伪代码}{Adding Tool Groups and Tools from the Knowledge Graph}
+\label{alg:add_tool_graph}
+\KwIn{工具图谱 \texttt{Graph}, 工具组信息 \texttt{toolGroupInfo}, 工具信息列表 \texttt{tools}}
+\KwOut{更新后的工具图谱 \texttt{Graph}}
+
+\BlankLine
+\textbf{Function} \texttt{AddToolGroup}(\texttt{Graph}, \texttt{toolGroupInfo}, \texttt{tools}):\\
+\Indp
+    \If{\texttt{!Graph.nodeExists}(\texttt{toolGroupInfo["id"]})}{
+        \texttt{Graph.addNode}(\texttt{toolGroupInfo["id"]}, \texttt{toolGroupInfo})\;
+        \texttt{Graph.addEdge}(\texttt{toolGroupInfo["id"]}, \texttt{toolGroupInfo["category\_id"]}, \texttt{"belongs\_to"})\;
+    }
+    \ForEach{\texttt{toolInfo} $\in$ \texttt{tools}}{
+        \texttt{AddTool}(\texttt{Graph}, \texttt{toolInfo}, \texttt{toolGroupInfo["id"]})\;
+    }
+\Indm
+\BlankLine
+
+\textbf{Function} \texttt{AddTool}(\texttt{Graph}, \texttt{toolInfo}, \texttt{toolGroupID}):\\
+\Indp
+    \If{\texttt{!Graph.nodeExists}(\texttt{toolInfo["id"]})}{
+        \texttt{Graph.addNode}(\texttt{toolInfo["id"]}, \texttt{toolInfo})\;
+        \texttt{Graph.addEdge}(\texttt{toolInfo["id"]}, \texttt{toolGroupID}, \texttt{"belongs\_to"})\;
+    }
+\Indm
+\BlankLine
+
+\textbf{Main Procedure}:\\
+\Indp
+    \texttt{AddToolGroup}(\texttt{Graph}, \texttt{toolGroupInfo}, \texttt{tools})\;
+\Indm
+\end{algorithm}
+
+为了完善新增工具的关系，我们对时序依赖关系和参数依赖关系进行分析。
+在时序依赖方面，由于新增工具不一定有现成的工具调用路径数据。
+因此我们对于新增工具暂不添加时序依赖关系，而是利用新工具
+的工具文档等信息来提取参数依赖信息。
+在提取强/弱参数依赖的部分，我们采取与上方基于大语言模型的参数依赖关系抽取同样的方式，
+将新增工具与现有工具进行两两配对，
+分析两个工具之间的参数依赖关系，并根据匹配结果创建工具之间的参数关系。
+
+在自动化更新流程中，删除和添加操作被区分处理。
+当进行工具删除时，系统会根据工具或工具组的标识，从图谱中删除相应的节点及其所有关联边。
+对于工具添加，系统会自动生成新增工具及工具组的节点信息，并调用参数依赖关系分析模块，更新其与现有图谱中其他工具的关系。
+
+通过上述工具图谱更新策略，工具图谱能够动态适应工具生态的变化，在保证结构一致性的同时，降低了维护的复杂性。这种设计为大规模集成工具的系统提供了稳定可靠的基础支持。
+
 
 % \begin{itemize}
 %   \item 时序依赖：时序依赖指的是在历史工具调用路径中被连续调用的两个工具。
@@ -772,4 +868,5 @@ Food & \texttt{api\_dcbd91ed...} & Worldwide Recipes & Get reviews & \texttt{47f
 
 \section{本章小结}
 
-本章提出了一种结合规则方法和大语言模型的工具图谱构建方法，系统化地完成了从工具数据筛选到概念模型设计再到数据导入的全流程。首先，为构建高质量的图谱数据基础，我们设计了两种数据筛选策略，对工具描述信息和调用路径数据进行筛选，提取出高质量的工具集合和调用路径。在图谱结构设计方面，定义了工具图谱的核心概念模型，包含工具节点、工具组节点和工具类别节点，并明确了它们之间的层次关系和依赖结构。通过建模时序依赖、强参数依赖和弱参数依赖三种关系，详细描述了工具之间的调用逻辑。最终，成功构建出一个高质量的工具图谱，并将其导入Neo4j数据库，实现了图谱的可视化和高效查询，为复杂任务场景下的工具调用和规划提供了强有力的支持。
+本章提出了一种结合规则方法和大语言模型的工具图谱构建方法，系统化地完成了从工具数据筛选到概念模型设计再到数据导入的全流程。首先，为构建高质量的图谱数据基础，我们设计了两种数据筛选策略，对工具描述信息和调用路径数据进行筛选，提取出高质量的工具集合和调用路径。在图谱结构设计方面，定义了工具图谱的核心概念模型，包含工具节点、工具组节点和工具类别节点，并明确了它们之间的层次关系和依赖结构。通过建模时序依赖、强参数依赖和弱参数依赖三种关系，详细描述了工具之间的调用逻辑。根据上述方法，本文成功构建出高质量的工具图谱，并将其导入Neo4j数据库，实现了图谱的可视化和高效查询，为复杂任务场景下的工具调用和规划提供了强有力的支持。
+为了适应开源工具的实时性和持续变化的工具生态，本章还提出了对工具图谱进行更新的方法，并针对删除和添加工具两种情况进行了介绍。
