@@ -18,12 +18,12 @@
 同时识别子任务之间的依赖关系并用结构化格式存储在系统中指导后续流程。
 其次，设计了一种基于工具知识图谱的工具选择与编排算法，
 通过在图谱上动态搜索工具依赖的关系注入到大语言模型提示词，辅助大语言模型工具选择和参数配置，提高准确性和可解释性。
-最后，为提高系统效率并节省计算资源，提出了并行调用策略和响应压缩方法。
+最后，为提高系统效率并节省计算资源，采用了并行调用策略并提出了响应压缩方法。
 工具的并行调用显著减少了系统整体时间，而对工具响应数据进行压缩则在保留关键信息的同时降低了大语言模型推理延迟，从而全面提升了系统的交互效率。
 
 \section{整体框架}
 
-图~\ref{fig:ch4-framework}展示了本章提出的基于深度优先遍历算法的动态工具编排算法的整体技术框架。
+图~\ref{fig:ch4-framework}展示了本章提出的基于工具图谱与多智能体工具编排与调用方法的整体技术框架。
 
 \begin{figure}[!htp]
   \vspace{1em}
@@ -484,7 +484,7 @@ T_{\text{并行}} = 4 \cdot 1 = 4 \, \text{秒}
 \definecolor{bgcolor}{RGB}{240,240,240} % Background color
 \definecolor{titlecolor}{RGB}{20,20,20} % Title background color
 
-\begin{table}[htbp]
+\begin{table}[H]
   \centering
   \caption{工具响应总结模块prompt构建示例}{Prompt Example for Response Generation Module} % 表头
   \label{tab:tool-summary} % 表格引用标签
