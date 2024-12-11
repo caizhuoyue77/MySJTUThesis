@@ -2,7 +2,13 @@
 
 \section{引言}
 
-本章介绍了一种结合规则匹配与大语言模型的工具图谱构建方法，并基于该方法成功实现了一个大规模的工具图谱。围绕工具图谱构建中的关键挑战，本章重点解决以下几个问题：首先，针对数据清洗问题，探讨了如何从调用路径数据中筛选出高质量的工具集合和有效的工具调用路径，以保证图谱构建的基础数据可靠性；其次，设计了工具图谱的本体模型，用以清晰表达工具之间的依赖关系；然后，提出了一种结合规则匹配与大语言模型的方法，自动从工具描述文档和调用数据中提取工具图谱实例模型的关键信息；接着，介绍了如何将整理后的数据导入到Neo4j数据库中，实现高效的图谱存储与查询；最后，针对工具图谱的动态性和可扩展性，讨论了图谱更新机制，尤其是在新增工具节点或修改工具关系时如何高效地更新图谱实例。
+本章介绍了一种结合规则匹配与大语言模型的工具图谱构建方法，并基于该方法成功实现了一个大规模的工具图谱。
+围绕工具图谱构建中的关键挑战，本章重点解决以下几个问题：首先，针对数据清洗问题，探讨了如何从调用路径数据中筛选出高质量的工具集合和有效的工具调用路径，以保证图谱构建的基础数据可靠性；
+其次，设计了工具图谱的本体模型，用以清晰表达工具之间的依赖关系；
+然后，提出了一种结合规则匹配与大语言模型的方法，自动从工具描述文档和调用数据中提取工具图谱实例模型的关键信息；
+接着，介绍了如何将整理后的数据导入到Neo4j数据库中，实现高效的图谱存储与查询；
+最后，针对工具图谱的动态性和可扩展性，讨论了图谱更新机制，
+尤其是在新增工具节点或修改工具关系时如何高效地更新图谱实例。
 
 \section{可行性分析}
 
@@ -40,9 +46,9 @@ TaskBench\cite{shen2023taskbench}和ToolAce\cite{liu2024toolace}等。
 同时，ToolBench中的API通过统一的密钥（key）即可调用，无需额外的注册或复杂的鉴权步骤，大大降低了工具使用的门槛，便于集成到本文的系统中。
 更重要的是，ToolBench提供了丰富的工具调用路径数据，共计126486条路径。这些路径数据都经过了工具评价器器ToolEval\cite{Qin2023}的标记，能够从中筛选得到成功执行的路径。
 
-ToolBench的整体构造基于开放的API托管平台“RapidAPI Hub”，其API工具以层级化结构组织。从大类别（如天气、金融、翻译等）到工具集（tool collections），再到具体的API工具，层层递进。用户通过订阅工具集即可访问对应的API工具。数据集还包含多种类型的信息，例如工具集的详细描述（名称、描述、类别等）、工具输入输出参数列表、示例代码和工具调用路径数据。这些信息为研究工具调用任务提供了全面支持。在本研究中，重点使用了ToolBench中的工具调用路径数据，构建了工具图谱。这些路径数据记录了工具协作完成任务的调用顺序和逻辑关系，为工具图谱的构建奠定了坚实的基础。
+ToolBench的整体构造基于开放的API托管平台“RapidAPI Hub”，其API工具以层级化结构组织。从大类别（如天气、金融、翻译等）到工具组（tool groups），再到具体的API工具，层层递进。用户通过订阅工具集即可访问对应的API工具。数据集还包含多种类型的信息，例如工具集的详细描述（名称、描述、类别等）、工具输入输出参数列表、示例代码和工具调用路径数据。这些信息为研究工具调用任务提供了全面支持。在本研究中，重点使用了ToolBench中的工具调用路径数据，构建了工具图谱。这些路径数据记录了工具协作完成任务的调用顺序和逻辑关系，为工具图谱的构建奠定了数据上的基础。
 
-值得说明的是，RapidAPI Hub上的API工具往往具有一定的功能相似性，多个工具可以在功能上互为替代。因此，对于同一用户任务，通常存在多条调用路径可以达到目标结果。这种路径的多样性使得任务解决方案并非唯一，而是具备灵活性和鲁棒性。研究中通过分析调用路径的输出结果是否符合预期，评估路径的合理性，即判断一组API调用是否能够满足任务需求。这种多路径、多结果的特性为研究工具调用的动态性和灵活性提供了更多维度的分析依据，进一步推动了多工具协作的深入探索。
+% 值得说明的是，RapidAPI Hub上的API工具往往具有一定的功能相似性，多个工具可以在功能上互为替代。因此，对于同一用户任务，通常存在多条调用路径可以达到目标结果。这种路径的多样性使得任务解决方案并非唯一，而是具备灵活性和鲁棒性。研究中通过分析调用路径的输出结果是否符合预期，评估路径的合理性，即判断一组API调用是否能够满足任务需求。这种多路径、多结果的特性为研究工具调用的动态性和灵活性提供了更多维度的分析依据，进一步推动了多工具协作的深入探索。
 
 \subsection{数据清洗}
 
@@ -142,9 +148,7 @@ ToolBench的整体构造基于开放的API托管平台“RapidAPI Hub”，其AP
 \textbf{删除调用错误节点}：在筛选优质工具路径后，我们需要进一步清洗工具路径数据，以确保调用路径上的工具都可执行。我们在调用路径中根据\texttt{"error"}字段的内容来决定是否删除节点。对于调用过程中发生错误的工具节点（如未授权错误、API不可用等错误），将其从路径中剔除，以确保路径的完整性和可执行性。最终，保留下的应该是一条线性且无错误的调用路径。
 
 
-\section{图谱构建}
-
-\subsection{工具图谱概念模型}
+\section{概念模型搭建}
 
 工具图谱中的实体类别主要包括三种：工具节点、工具组节点和工具类别节点。每种实体类别分别表示不同的抽象层次和功能，整体概念模型的结构如下：
 
@@ -173,7 +177,8 @@ ToolBench的整体构造基于开放的API托管平台“RapidAPI Hub”，其AP
 \end{figure}
 
 \begin{itemize}
-    \item Name（名称）：工具的唯一标识名称。
+    \item Tool ID(工具ID)：工具的唯一标识符。
+    \item Name（名称）：工具的名称。
     \item URL（接口地址）：API工具的访问地址。
     \item Description（描述）：工具的简要说明，通常用于描述其用途或功能。
     \item Method（请求方法）：支持的HTTP方法，如GET、POST等。
@@ -199,17 +204,10 @@ ToolBench的整体构造基于开放的API托管平台“RapidAPI Hub”，其AP
 \begin{itemize}
     \item Group ID（工具组ID）：工具组的唯一标识符。
     \item Name（名称）：工具组的名称。
-    \item TDescription（工具组描述）：对该工具组的整体描述。
+    \item Description（工具组描述）：对该工具组的整体描述。
     \item Home URL（链接）：工具组的官网链接或信息页面。
     \item Pricing（定价）：工具组的定价信息，例如``免费（FREE）''。
     \item Score（评分）：工具组的相关指标。
-    % ，包括：
-    %     \begin{itemize}
-    %         \item AvgServiceLevel（服务水平平均值）：表示服务稳定性的指标，百分比表示。
-    %         \item AvgLatency（平均延迟）：工具组调用的平均延迟时间，单位为毫秒。
-    %         \item AvgSuccessRate（成功率平均值）：表示API调用成功率的平均值，百分比表示。
-    %         \item PopularityScore（流行度评分）：工具组的受欢迎程度评分。
-    %     \end{itemize}
     \item Host（请求地址）：工具组所关联的主要域名地址。
 \end{itemize}
 
@@ -267,66 +265,84 @@ ToolBench的整体构造基于开放的API托管平台“RapidAPI Hub”，其AP
     \item 关系描述（Description）：工具B的输入可以由工具A提供，但也可以通过其他方式获取。
 \end{itemize}
 
-\subsection{基于规则和大语言模型的知识抽取}
+\section{基于规则和大语言模型的知识抽取}
 
-本节详细阐述工具知识图谱的构建过程，包括节点和依赖关系的抽取、存储，以及如何将数据导入Neo4j进行存储和查询。
+\subsection{基于规则的实体抽取}
 
-\subsubsection{基于规则的实体抽取}
+在工具知识图谱的构建过程中，实体抽取是关键的步骤之一。
+针对半结构化的JSON格式工具描述文档，我们设计了基于规则的实体抽取方法，
+旨在将这些数据转化为符合本体模型结构的标准化CSV格式节点文件，
+从而为后续图谱的构建和查询提供支持。
 
-工具组、工具和工具类别节点的抽取主要依赖规则匹配。从现有的JSON格式工具描述文档中，按照预定义规则通过代码匹配关键信息。工具组的抽取字段包括其ID、工具组名称、工具组描述和主页链接等信息，这些字段为工具组提供全局标识及其关联性。工具节点的提取则更加具体，记录每个工具的名称、API地址、功能描述、HTTP方法（如GET或POST）、必需参数和可选参数等关键信息。工具类别节点用于标识工具组的具体类别，如“天气”、“旅行”等标签，从工具文档中可直接提取。
+首先，工具组、工具和工具类别节点的抽取是通过人工定义的规则进行匹配的。
 
-通过规则提取的节点数据存储为结构化的CSV格式，CSV结构的文件能够直接导入知识图谱，提供了数据的支撑。
+工具类别节点则用于表示工具组的具体类别（例如“天气”、“旅行”等）。通过分析工具文档中的\texttt{“category”}字段，可以直接提取并构建工具类别节点，进一步帮助图谱分类和组织工具信息。
+
+针对工具组节点，我们通过预定义的规则从JSON文档中提取相关字段信息，主要包括工具组ID、工具组名称、工具组描述以及主页链接等。
+
+工具节点的提取更加具体且复杂。我们通过规则匹配获取每个工具的关键信息，如工具名称、API地址、功能描述、支持的HTTP方法（如GET或POST）、必需参数、可选参数等。此外，根据工具名称和API地址生成工具的唯一标识符（UUID），以确保每个工具节点在知识图谱中具有唯一性。
+
+根据上述规则，我们编写了Python数据处理代码将JSON格式的半结构化工具文档转化为结构化的CSV格式。CSV文件的结构化形式确保了数据能够准确地映射到预定的概念模型中，并能够直接导入到Neo4j等图数据库中，方便后续的数据存储、查询与分析。
 
 \begin{table}[ht]
-\centering
-\bicaption{工具实体数据格式}{CSV Data Structure for Importing}
-\label{tab:csv-example}
-\renewcommand{\arraystretch}{1.2}
-\scriptsize % 调整字体大小
-\begin{tabular}{|l|l|l|p{6cm}|l|}
-\hline
-\textbf{Category} & \textbf{Product ID} & \textbf{Tool Name} & \textbf{API Description} & \textbf{Hash ID} \\ \hline
-Food & \texttt{api\_dcbd91ed...} & Worldwide Recipes & Get detail of recipe & \texttt{167fc042...} \\ \hline
-Food & \texttt{api\_dcbd91ed...} & Worldwide Recipes & Get recipes by author & \texttt{d8c4f1e7...} \\ \hline
-Food & \texttt{api\_dcbd91ed...} & Worldwide Recipes & Get reviews & \texttt{47f3a387...} \\ \hline
-\end{tabular}
-\end{table}
+    \centering
+    \bicaption{工具实体数据格式}{CSV Data Structure for Tool Entities}
+    \label{tab:csv-example-tool}
+    \renewcommand{\arraystretch}{1.2}
+    \scriptsize % 调整字体大小
+    \begin{tabular}{|l|l|l|l|l|l|l|}
+    \hline
+    \textbf{Tool ID} & \textbf{Name} & \textbf{URL} & \textbf{Description} & \textbf{Method} & \textbf{Required Params} & \textbf{Optional Params} \\ \hline
+    \texttt{a23d...} & Weather API & ... & Get current weather data & GET & city, country & lang \\ \hline
+    \texttt{r7xv...} & Flight Search API & ... & Search for available flights & POST & origin, destination, date & class \\ \hline
+    \texttt{7a4e...} & Hotel API & ... & Retrieve hotel booking info & GET & location, date & type \\ \hline
+    \end{tabular}
+    \end{table}
 
-\subsubsection{基于规则的时序依赖关系抽取}
+\subsection{基于规则的时序依赖关系抽取}
 
 时序依赖是通过分析工具调用路径数据来构建的。经过上述的对调用路径的清洗流程，剩下的工具调用数据均可理解为高质量路径。接着，遍历这些调用链中连续调用的工具，将其标记为时序依赖。这种依赖通常用于捕获工具在真实调用路径中的关系，反映调用流程的顺序逻辑。例如，旅行工具链中“酒店搜索”紧接着“酒店评论查询”，这反映了用户实际使用时的时序逻辑，也反映了两者之间的关系。
 
 抽取后的时序依赖关系记录起点工具、终点工具、依赖类型（标记为“时序依赖”）以及描述字段。时序依赖的记录不仅有助于绘制工具调用路径，还为分析流程优化提供依据。
 
-\subsubsection{基于大语言模型的参数依赖关系抽取}
+\subsection{基于大语言模型的参数依赖关系抽取}
 
-（这是知识图谱有关的关系抽取）
 除了通过代码规则抽取工具之间的时序关系，我们还需要对工具之间的参数依赖关系进行分析。
-首先，我们尝试了一种基于规则匹配的方案，即通过对工具 API 的输入参数和输出字段进行名称和类别的比对来识别潜在的依赖关系。
-这种方法的实现逻辑较为简单直观，对结构化和模式化的依赖关系具有较好的识别能力。
-然而，在实际实验中，我们发现该方案存在两个主要问题：
 
+首先，我们尝试了一种基于规则匹配的方案，即通过对工具 API 的输入参数和输出字段进行字段名和类别的比对来识别潜在的依赖关系。
+这种方法的实现逻辑较为简单直观，对结构化和模式化的依赖关系具有较好的识别能力。
+
+然而，在实际实验中，我们发现该方案存在两个主要问题：
 \begin{itemize}
-    \item 参数名称不一致导致的依赖关系遗漏。同一参数可能在不同工具中使用不同的名称，例如“酒店ID”在某些工具中可能表示为不同的字段。这种不一致容易导致依赖关系的遗漏，限制了工具知识图谱的表达能力。
+    \item 参数名称不一致导致的依赖关系遗漏。同一参数可能在不同工具中使用不同的名称，例如\texttt{“酒店ID”}在某些工具中可能表示为不同的字段。这种不一致容易导致依赖关系的遗漏，限制了工具知识图谱的表达能力。
     \item 不同语义的同名参数引入的噪声。同名参数在不同工具中可能具有不同的语义。例如，\texttt{ID} 在“酒店搜索”工具中表示“酒店的唯一标识符”，而在“航班搜索”工具中可能指“航班班次编号”。这种情况下，会误判依赖关系，从而引入噪声。
 \end{itemize}
 
 尽管规则匹配方法在特定场景下有效，但当面对复杂多样的API数据时，其不足显而易见。此外，人工抽取工具之间的参数依赖关系虽然精确度较高，但成本较高，且难以扩展到大规模工具集成场景。
 
-为解决上述问题，我们引入了大语言模型（LLM）对工具 API 之间的依赖关系进行自动化分析和生成。LLM 凭借其强大的语义理解与解析能力，能够从语义层面识别工具间的参数依赖关系，从而弥补规则匹配的不足。
+为解决上述问题，我们引入了大语言模型对工具 API 之间的依赖关系进行自动分析和生成。LLM 凭借其强大的语义理解与解析能力，能够从语义层面识别工具间的参数依赖关系，从而弥补规则匹配和人工抽取的不足。
 我们通过将API文档信息融入到LLM的提示词中，并提供相应抽取格式的样本案例，指导大语言模型抽取出API之间的关系和对应参数。
 
-在具体实现中，为了能够完全覆盖工具之间的依赖关系，我们将所有工具两两进行配对，将
+在具体实现中，如图\ref{fig:relation-extraction}为了能够完全覆盖工具之间的依赖关系，我们将所有工具两两进行配对，将
 工具组名称、工具名称、入参列表、响应体结构等都放在LLM的提示词中，并要求LLM分析
 是否存在参数上的依赖关系。若存在参数依赖关系，则输出对应的参数名称并简单描述该依赖关系。
+
+\begin{figure}[H]
+    \vspace{1em}
+    \centering
+    \setlength{\abovecaptionskip}{10pt} % 控制图片和caption之间的距离
+    \includegraphics[height=6cm]{../assets/ch3-llm关系抽取.pdf}
+    \bicaption{基于大语言模型的工具关系抽取}{Relation Extraction with LLM}
+    \label{fig:relation-extraction}
+\end{figure}
 
 % Set Colors
 \definecolor{bgcolor}{RGB}{240,240,240} % Background color
 \definecolor{titlecolor}{RGB}{20,20,20} % Title background color
 
-\begin{table}[htbp]
+\begin{table}[H]
     \centering
-    \bicaption{工具图谱关系依赖抽取prompt构建示例}{Example Prompt for Extracting Tool Knowledge Graph's Resource Dependencies} % 表头
+    \bicaption{工具图谱关系依赖抽取prompt构建示例}{Example Prompt for Extracting Resource Dependencies} % 表头
     \label{tab:analyze_api_dependencies} % 表格引用标签
     \begin{tcolorbox}[colback=bgcolor, colframe=black, width=0.95\textwidth, boxrule=0.5mm, 
     coltitle=white, colbacktitle=titlecolor, title=Task: Analyze API Dependencies]
@@ -335,10 +351,13 @@ Food & \texttt{api\_dcbd91ed...} & Worldwide Recipes & Get reviews & \texttt{47f
     \textbf{<Task>} Analyze the parameter dependencies between two APIs based on their names and descriptions, and output the result in JSON format.
     
     \textbf{<Instructions>}
+
     1. Identify possible parameter dependencies (e.g., the output of the first tool is the input of the second tool).  
-       - If a parameter is unique or organization-specific (e.g., \texttt{product\_id} used internally by Amazon), classify it as a \textbf{strong relationship}.  
-       - If a parameter is generic or commonly used (e.g., \texttt{time}, \texttt{longitude}), classify it as a \textbf{weak relationship}.  
-    2. Provide a description of the dependency: A concise explanation of what the parameter represents.  
+       - If a parameter is unique or organization-specific (e.g., \texttt{product\_id} used internally by Amazon), classify it as a \textbf{strong parameter dependency}.  
+       - If a parameter is generic or commonly used (e.g., \texttt{time}, \texttt{longitude}), classify it as a \textbf{weak parameter dependency}. 
+
+    2. Provide a brief description of the dependency: A concise explanation of what the parameter represents.  
+
     3. Output the result in JSON format, ensuring it is structured and logically consistent.  
     
     \vspace{0.5em}
@@ -352,23 +371,40 @@ Food & \texttt{api\_dcbd91ed...} & Worldwide Recipes & Get reviews & \texttt{47f
     \vspace{0.5em}
     
     \textbf{<Example Output>}  
-    
-    \begin{verbatim}
-{
-    "dependencies": [
-    {
-        "name_in_first_api": "q",
-        "name_in_second_api": "query",
-        "dependency_description": "..."
-    }
-    ]
-}
-    \end{verbatim}
+    ...
     
     \end{tcolorbox}
 \end{table}
 
-% 引入LLM的方案具能够高效处理参数名称不一致的问题，通过基于上下文语义理解字段的实际含义，避免因名称匹配带来的依赖关系遗漏。同时，LLM还能准确区分参数的语义差异，对于同名字段，可结合工具功能和字段定义的语义信息，明确不同工具中参数的具体含义，从而有效减少噪声。此外，该方案简化了流程并提高了准确性，借助LLM直接生成依赖关系，无需依赖复杂的规则匹配流程，在大规模工具图谱生成中展现出更高的适用性。
+
+引入LLM的方案具能够高效处理参数名称不一致的问题，通过基于上下文语义理解字段的实际含义，避免因名称匹配带来的依赖关系遗漏。同时，LLM还能准确区分参数的语义差异，对于同名字段，可结合工具功能和字段定义的语义信息，明确不同工具中参数的具体含义，从而有效减少噪声。此外，该方案简化了流程并提高了准确性，借助LLM直接生成依赖关系，无需依赖复杂的规则匹配流程，在大规模工具图谱生成中展现出更高的适用性。
+通过大语言模型抽取得到的强/弱依赖关系如下表\ref{tab:csv-example-strong-dependency}和\ref{tab:csv-example-weak-dependency}所示。
+
+\begin{table}[H]
+    \centering
+    \bicaption{工具间强参数依赖关系数据格式}{CSV Data for Strong Parameter Dependencies}
+    \label{tab:csv-example-strong-dependency}
+    \renewcommand{\arraystretch}{1.2}
+    \scriptsize % 调整字体大小
+    \begin{tabular}{|l|l|l|l|}
+    \hline
+    \textbf{Source Tool ID} & \textbf{Target Tool ID} & \textbf{Resource Type} & \textbf{Description} \\ \hline
+    \texttt{ehd4...} & \texttt{7a4e...} & Hotel ID & requires Hotel ID to search hotel reviews \\ \hline
+    \end{tabular}
+    \end{table}
+
+    \begin{table}[H]
+        \centering
+        \bicaption{工具间弱参数依赖关系数据格式}{CSV Data for Weak Parameter Dependencies}
+        \label{tab:csv-example-weak-dependency}
+        \renewcommand{\arraystretch}{1.2}
+        \scriptsize % 调整字体大小
+        \begin{tabular}{|l|l|l|l|}
+        \hline
+        \textbf{Source Tool ID} & \textbf{Target Tool ID} & \textbf{Resource Type} & \textbf{Description} \\ \hline
+        \texttt{4jf7...} & \texttt{0qc8...} & Longitude, Latitude & provides longitude and latitude as parameters \\ \hline
+        \end{tabular}
+        \end{table}
 
 图\ref{fig:ch3-knowledge-graph-instance-model}为该工具图谱的实例模型示意图。
 
@@ -383,7 +419,7 @@ Food & \texttt{api\_dcbd91ed...} & Worldwide Recipes & Get reviews & \texttt{47f
 
 总体而言，引入 LLM 的方案，不仅弥补了基于规则匹配的局限性，还通过语义理解能力显著提升了依赖关系识别的全面性和准确性。
 
-\subsection{图谱数据导入}
+\section{图谱数据导入}
 
 构建完成的工具知识图谱数据需要导入Neo4j图数据库，以支持高效存储和复杂查询。数据导入分为节点和关系两部分。首先，工具、工具组和工具类别被转化为图中的节点。它们分别通过名称、ID等标识字段建立类型，并与属性字段一一关联。
 
@@ -402,7 +438,7 @@ Food & \texttt{api\_dcbd91ed...} & Worldwide Recipes & Get reviews & \texttt{47f
     \label{fig:ch3-neo4j}
 \end{figure}
 
-\subsection{工具图谱更新策略}
+\section{工具图谱更新策略}
 
 工具知识图谱并非建立之后就一成不变，
 而是会随着工具的废弃和新增发生变化，
